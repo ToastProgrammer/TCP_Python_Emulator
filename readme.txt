@@ -1,4 +1,4 @@
- Team Members: 
+Team Members: 
  Eric Craaybeek, Ben Tozier
 
 Files contained:
