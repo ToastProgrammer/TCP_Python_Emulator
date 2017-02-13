@@ -11,14 +11,16 @@ serverSocket = socket(AF_INET, SOCK_DGRAM)
 serverSocket.bind(('',serverPort))
 
 dstFile = 'dstPic.png'
-fileWrite = open(dstFile, 'ab')
-
 
 print ('The server is ready to receive')
 while 1:
+    # Wait here until recieve message from socket
     message, clientAddress = serverSocket.recvfrom(2048)
+    # Write local file
+    fileWrite = open(dstFile, 'ab')
     fileWrite.write(message)
     fileWrite.seek(2048)
+    # If EOF, close the file
     if message == b"":
         fileWrite.close()
 
