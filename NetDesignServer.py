@@ -9,7 +9,18 @@ from socket import *
 serverPort = 12000
 serverSocket = socket(AF_INET, SOCK_DGRAM)
 serverSocket.bind(('',serverPort))
+
+dstFile = 'dstPic.png'
+
 print ('The server is ready to receive')
 while 1:
+    # Wait here until recieve message from socket
     message, clientAddress = serverSocket.recvfrom(2048)
-    serverSocket.sendto(message, clientAddress)
+    # Write local file
+    fileWrite = open(dstFile, 'ab')
+    fileWrite.write(message)
+    fileWrite.seek(2048)
+    # If EOF, close the file
+    if message == b"":
+        fileWrite.close()
+
