@@ -19,13 +19,6 @@ ServerName = 'localhost'
 # Port for socket to attach to
 ServerPort = 12000
 
-<<<<<<< HEAD
-fileWrite.close()
-fileRead.close()
-clientSocket.close()
-
-#Testing Github
-=======
 class App(Frame):
     # Tkinter initializing
     def __init__(self, master=None):
@@ -109,4 +102,3 @@ root = Tk()
 app = App(master=root)
 # Run the tkinter GUI app
 app.mainloop()
->>>>>>> ben_dev
