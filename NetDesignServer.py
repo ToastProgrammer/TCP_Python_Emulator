@@ -3,7 +3,9 @@
 
 #code adapted from :
 #"Computer Networking: A Top-Down Approach" by Keith Ross and James Kurose
-
+from binascii import *
+from SocketFunctions import *
+from DataFunctions import *
 from socket import *
 from .DataFunctions import *
 

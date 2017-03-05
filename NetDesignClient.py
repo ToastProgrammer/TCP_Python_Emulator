@@ -4,21 +4,17 @@
 #code adapted from :
 #"Computer Networking: A Top-Down Approach" by Keith Ross and James Kurose
 
-from socket import *
 from tkinter import *
+<<<<<<< HEAD
 from .DataFunctions import *
 
+=======
+from SocketFunctions import *
+from DataFunctions import *
+import Constants
+>>>>>>> origin/master
 
 global root
-
-# Size of packets to send
-PacketSize = 1024
-# Message to signify end of file
-TerminateCharacter = b''
-
-ServerName = 'localhost'
-# Port for socket to attach to
-ServerPort = 12000
 
 class App(Frame):
     # Tkinter initializing
@@ -56,9 +52,6 @@ class App(Frame):
 
     def send_file(self, event):
 
-        # Setup socket
-        clientSocket = socket(AF_INET, SOCK_DGRAM)
-
         # Get variable obtained via GUI
         srcFile = self.contents.get()
 
@@ -73,6 +66,7 @@ class App(Frame):
             self.Quit()
             raise
 
+<<<<<<< HEAD
         #packet creation and send initial packet
         packdat = fileRead.read(PacketSize)
         sndpkt = makepkt(packdat,0,MakeChecksum(packdat))
@@ -90,10 +84,12 @@ class App(Frame):
 
         # Send a final message to the server to signify end
         clientSocket.sendto(TerminateCharacter, (ServerName, ServerPort))
+=======
+        TransmitFile(fileRead)
+>>>>>>> origin/master
 
-        # End by closing the file and the socket
         fileRead.close()
-        clientSocket.close()
+
 
 
 
