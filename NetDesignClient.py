@@ -6,6 +6,7 @@
 
 from socket import *
 from tkinter import *
+from .DataFunctions import *
 
 
 global root
@@ -72,13 +73,20 @@ class App(Frame):
             self.Quit()
             raise
 
-        # initial read of file
-        message = fileRead.read(PacketSize)
+        #packet creation and send initial packet
+        packdat = fileRead.read(PacketSize)
+        sndpkt = makepkt(packdat,0,MakeChecksum(packdat))
+        udt_send(sndpkt)
+
+        #begin state machine by entering wait ack 0 state
+        wait_ack_0()
+
+
         # loop to read and send packets to the server
-        while message != b"":
-            packet = message
-            clientSocket.sendto(packet, (ServerName, ServerPort))
-            message = fileRead.read(PacketSize)
+        #while message != b"":
+        #    packet = message
+        #    clientSocket.sendto(packet, (ServerName, ServerPort))
+        #    message = fileRead.read(PacketSize)
 
         # Send a final message to the server to signify end
         clientSocket.sendto(TerminateCharacter, (ServerName, ServerPort))
@@ -86,6 +94,56 @@ class App(Frame):
         # End by closing the file and the socket
         fileRead.close()
         clientSocket.close()
+
+
+
+    ######## Function:
+    ######## wait_ack_0
+    #### Purpose:
+    #### one of the two states in this state machine,
+    #### waits for ack 0 then sends next packet and goes to next state
+    ## Paramters:
+    ## None
+    def wait_ack_0(self):
+        #if ack was received
+        if rdt_rcv(rcvpkt)==1:
+            #if corrupt or wrong sn resend
+            if CheckChecksum(rcvpkt)==False or isAck(rcvpkt,1):
+                udt_send(sndpkt)
+                wait_ack_0()
+            #if not corrupt and correct sn send new packet and change state
+            if CheckChecksum(rcvpkt)==True and isAck(rcvpkt,0):
+                packdat = fileRead.read(PacketSize)
+                sndpkt = makepkt(packdat, 1, MakeChecksum(packdat))
+                udt_send(sndpkt)
+                wait_ack_1()
+        #loop back if ack not recieved
+        wait_ack_0()
+
+    ######## Function:
+    ######## wait_ack_1
+    #### Purpose:
+    #### one of the two states in this state machine,
+    #### waits for ack 1 then sends next packet and goes to next state
+    ## Paramters:
+    ## None
+    def wait_ack_1(self):
+        #if packet was received
+        if rdt_rcv(rcvpkt)==1:
+            # if corrupt or wrong sn resend
+            if CheckChecksum(rcvpkt)==False or isAck(rcvpkt,0):
+                udt_send(sndpkt)
+                wait_ack_0()
+            # if not corrupt and correct sn send new packet and change state
+            if CheckChecksum(rcvpkt)==True and isAck(rcvpkt,1):
+                packdat = fileRead.read(PacketSize)
+                sndpkt = makepkt(packdat, 0, MakeChecksum(packdat))
+                udt_send(sndpkt)
+                wait_ack_1()
+        # loop back if ack not recieved
+        wait_ack_0()
+
+
 
     ######## Function:
     ######## Quit
@@ -95,8 +153,6 @@ class App(Frame):
     ## None
     def Quit(self):
         root.destroy()
-
-
 
 root = Tk()
 app = App(master=root)
