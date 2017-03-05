@@ -3,6 +3,8 @@ PacketSize = 1024
 # Message to signify end of file
 TerminateCharacter = b''
 
+ACK = bytes(b'\xFA')
+
 ServerName = 'localhost'
 # Port for socket to attach to
 ServerPort = 12000

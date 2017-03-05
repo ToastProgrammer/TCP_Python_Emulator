@@ -1,5 +1,9 @@
 from socket import *
 from Constants import *
+from random import *
+
+corruptDictionary = {0 : b'\x01', 1 : b'\x02', 2 : b'\x04', 3 : b'\x08',
+                     4 : b'\x10', 5 : b'\x20', 6 : b'\x40', 7 : b'\x80'}
 
 ##---------------Bitwise Manipulation-----------------##
 #------------------------------------------------------#
@@ -53,7 +57,21 @@ def CheckSequenceNum(seq, seqNum):
     else:
         return InSequence
 
-def PackageHeader(data, seq):
+def PackageHeader(data, seq, failPercent = 0):
     Segment = AddSequenceNum(data, seq)
     return InsertChecksum(Segment, MakeChecksum(Segment))
 
+def UnpackageHeader(segment):
+    return (segment[3:])
+
+def IsAck(segment, seqNum):
+    if (UnpackageHeader(segment) is ACK):
+        if CheckSequenceNum(segment,seqNum):
+            return True
+    return False
+
+def CorruptPacket(bString):
+    bString += (corruptDictionary[randint(0,7)])
+    return bString
+
+test = PackageHeader(b'\x12\x56\x34', 1, )
