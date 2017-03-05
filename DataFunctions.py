@@ -73,5 +73,3 @@ def IsAck(segment, seqNum):
 def CorruptPacket(bString):
     bString += (corruptDictionary[randint(0,7)])
     return bString
-
-test = PackageHeader(b'\x12\x56\x34', 1, )
