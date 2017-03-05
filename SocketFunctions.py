@@ -1,22 +1,16 @@
 from socket import *
 from Constants import *
+import random
+
 
 ##-----------------Socket Functions-------------------##
 #------------------------------------------------------#
-def udt_send(fileRead):
-    # Setup socket
-    clientSocket = socket(AF_INET, SOCK_DGRAM)
+def udt_send(packet, socket):
+    socket.sendto(packet, (ServerName, ServerPort))
 
-    # initial read of file
-    message = fileRead.read(PacketSize)
-    # loop to read and send packets to the server
-    while message != b"":
-        packet = message
-        clientSocket.sendto(packet, (ServerName, ServerPort))
-        message = fileRead.read(PacketSize)
+def rdt_rcv(socket):
+    rcvpkt, clientAddress = socket.recvfrom(PacketSize)
+    return rcvpkt
 
-    # Send a final message to the server to signify end
-    clientSocket.sendto(TerminateCharacter, (ServerName, ServerPort))
 
-    # End by closing the file and the socket
-    clientSocket.close()
+
