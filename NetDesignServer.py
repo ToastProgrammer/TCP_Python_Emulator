@@ -8,11 +8,14 @@ from SocketFunctions import *
 from DataFunctions import *
 from socket import *
 from .DataFunctions import *
+import Constants
 
 #setup socket
-serverPort = 12000
 serverSocket = socket(AF_INET, SOCK_DGRAM)
-serverSocket.bind(('',serverPort))
+serverSocket.bind(('',ServerPort))
+
+#define ACK
+ACK = bytearray(b'\xFA')
 
 #create destination file
 dstFile = 'dstPic.png'
@@ -29,17 +32,17 @@ print ('The server is ready to receive')
 ## Paramters:
 ## None
 def wait_for_0():
-    if rdt_rcv(rcvpkt)==1:
-            if CheckChecksum(rcvpkt)==True and SeqNum(rcvpkt)==0:
-                extract(rcvpkt,data)
-                deliver_data(data)
-                sndpkt = makepkt(ACK,0,checksum)
-                udt_send(sendpkt)
-                oncethrough = 1
-                wait_for_1()
-            if CheckChecksum(rcvpkt)==False or SeqNum(rcvpkt)==1:
-                if oncethrough==1:
-                    udt_send(sndpkt)
+    rcvpkt = rdt_rcv(serverSocket)
+    if CheckChecksum(rcvpkt)==True and CheckSequenceNum(rcvpkt,0)==True:
+        data = UnpackageHeader(rcvpkt)
+        deliver_data(data)
+        sndpkt = PackageHeader(ACK,0)
+        udt_send(sndpkt, serverSocket)
+        oncethrough = 1
+        wait_for_1()
+    if CheckChecksum(rcvpkt)==False or CheckSequenceNum(rcvpkt,1)==True:
+        if oncethrough==1:
+            udt_send(sndpkt, serverSocket)
     wait_for_0()
 
 ######## Function:
@@ -50,28 +53,31 @@ def wait_for_0():
 ## Paramters:
 ## None
 def wait_for_1():
-    if rdt_rcv(rcvpkt)==1:
-        if CheckChecksum(rcvpkt)==True and SeqNum(rcvpkt)==1:
-            extract(rcvpkt, data)
-            deliver_data(data)
-            sndpkt = makepkt(ACK, 1, checksum)
-            udt_send(sendpkt)
-            wait_for_0()
-        if CheckChecksum(rcvpkt)==False or SeqNum(rcvpkt)==0:
-            udt_send(sndpkt)
+    rcvpkt = rdt_rcv(serverSocket)
+    if CheckChecksum(rcvpkt)==True and CheckSequenceNum(rcvpkt,1)==True:
+        data = UnpackageHeader(rcvpkt)
+        deliver_data(data)
+        sndpkt = PackageHeader(ACK, 1)
+        udt_send(sndpkt, serverSocket)
+        wait_for_0()
+    if CheckChecksum(rcvpkt)==False or CheckSequenceNum(rcvpkt,0)==True:
+        udt_send(sndpkt, serverSocket)
     wait_for_1()
 
+######## Function:
+######## deliver data
+#### Purpose:
+#### delivers the data from packet and appends to file
+## Paramters:
+## Data in
+def deliver_data(data):
+    fileWrite = open(dstFile, 'ab')
+    fileWrite.write(data)
+    fileWrite.seek(PacketSize)
+    #if EOF close file
+    if data == b"":
+        fileWrite.close()
+    return
 
 
-
-#while 1:
-    # Wait here until recieve message from socket
-    #message, clientAddress = serverSocket.recvfrom(2048)
-    # Write local file
-    #fileWrite = open(dstFile, 'ab')
-    #fileWrite.write(message)
-    #fileWrite.seek(2048)
-    ## If EOF, close the file
-    #if message == b"":
-    #    fileWrite.close()
 
