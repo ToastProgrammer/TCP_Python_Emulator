@@ -1,6 +1,5 @@
 from socket import *
 from Constants import *
-from binascii import *
 
 ##---------------Bitwise Manipulation-----------------##
 #------------------------------------------------------#
@@ -57,35 +56,3 @@ def CheckSequenceNum(seq, seqNum):
 def PackageHeader(data, seq):
     Segment = AddSequenceNum(data, seq)
     return InsertChecksum(Segment, MakeChecksum(Segment))
-
-##-----------------Socket Functions-------------------##
-#------------------------------------------------------#
-def TransmitFile(fileRead):
-    # Setup socket
-    clientSocket = socket(AF_INET, SOCK_DGRAM)
-
-    # initial read of file
-    message = fileRead.read(PacketSize)
-    # loop to read and send packets to the server
-    while message != b"":
-        packet = message
-        clientSocket.sendto(packet, (ServerName, ServerPort))
-        message = fileRead.read(PacketSize)
-
-    # Send a final message to the server to signify end
-    clientSocket.sendto(TerminateCharacter, (ServerName, ServerPort))
-
-    # End by closing the file and the socket
-    clientSocket.close()
-
-#bytearray(b'\x12\x5F\x3A')
-testing = open("srcPic.png", 'rb')
-t2 = testing.read(1024)
-print(type(t2))
-print(t2)
-a = MakeChecksum(t2)
-print(type(a))
-t2 = a + t2
-print(type(t2))
-print(CheckChecksum(t2))
-print(bytes(t2))

@@ -5,6 +5,7 @@
 #"Computer Networking: A Top-Down Approach" by Keith Ross and James Kurose
 
 from tkinter import *
+from SocketFunctions import *
 from DataFunctions import *
 import Constants
 
