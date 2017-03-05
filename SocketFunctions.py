@@ -3,7 +3,7 @@ from Constants import *
 
 ##-----------------Socket Functions-------------------##
 #------------------------------------------------------#
-def TransmitFile(fileRead):
+def udt_send(fileRead):
     # Setup socket
     clientSocket = socket(AF_INET, SOCK_DGRAM)
 
