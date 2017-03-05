@@ -96,11 +96,11 @@ class App(Frame):
     def wait_ack_0(self, prevpkt):
         rcvpkt = rdt_rcv(clientSocket)
         #if corrupt or wrong sn resend
-        if CheckChecksum(rcvpkt)==False or isAck(rcvpkt,1):
+        if CheckChecksum(rcvpkt)==False or isAck(rcvpkt,1)==True:
             udt_send(prevpkt, clientSocket)
             self.wait_ack_0(prevpkt)
         #if not corrupt and correct sn send new packet and change state
-        if CheckChecksum(rcvpkt)==True and isAck(rcvpkt,0):
+        if CheckChecksum(rcvpkt)==True and isAck(rcvpkt,0)==True:
             packdat = fileRead.read(PacketSize)
             sndpkt = PackageHeader(packdat, 1)
             udt_send(sndpkt, clientSocket)
@@ -119,11 +119,11 @@ class App(Frame):
         #if packet was received
         rcvpkt = rdt_rcv(clientSocket)
         # if corrupt or wrong sn resend
-        if CheckChecksum(rcvpkt)==False or isAck(rcvpkt,0):
+        if CheckChecksum(rcvpkt)==False or isAck(rcvpkt,0)==True:
             udt_send(prevpkt, clientSocket)
             self.wait_ack_0(prevpkt)
         # if not corrupt and correct sn send new packet and change state
-        if CheckChecksum(rcvpkt)==True and isAck(rcvpkt,1):
+        if CheckChecksum(rcvpkt)==True and isAck(rcvpkt,1)==True:
             packdat = fileRead.read(PacketSize)
             sndpkt = PackageHeader(packdat, 0)
             udt_send(sndpkt, clientSocket)
