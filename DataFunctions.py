@@ -47,7 +47,7 @@ def RemoveSequenceNum(seq):
 
 def CheckSequenceNum(seq, seqNum):
     InSequence = False
-    if seq[1] is seqNum:
+    if seq[2] is seqNum:
         InSequence = True
         return InSequence, RemoveSequenceNum(seq)
     else:
@@ -56,3 +56,4 @@ def CheckSequenceNum(seq, seqNum):
 def PackageHeader(data, seq):
     Segment = AddSequenceNum(data, seq)
     return InsertChecksum(Segment, MakeChecksum(Segment))
+
