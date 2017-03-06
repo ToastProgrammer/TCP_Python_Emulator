@@ -3,17 +3,18 @@ Team Members:
 
 Files contained:
  readme.txt - this file
- NetDesignServer.py - the server file that receives bytes and sends them back
- NetDesignClient.py - the client file that sends a file called testRead.txt
+ NetDesignServer.py - the server file that receives the file
+ NetDesignClient.py - the client file that sends a file
+ DataFunctions.py - a file containing various functions used in packet manipulation
+ SocketFunctions.py - a file containing modified send and receive functions
+ Constants.py - a file containing various constants used in other parts of program
  design.docx - a descriptive document overviewing this project
  srcPic.png - picture file used to demonstrate file transfer
  srcPic2.png - second picture file for redundancy
  
 Steps Required to execute:
  1: Ensure python is installed
- 2: To send to the same machine leave the programs as is;
-    To send to a different machine edit NetDesignClient.py and change the servername variable
-    to the address of the machine that the server will run on.
+ 2: To send to the same machine leave the programs as is
  3: Open cmd, (or terminal) and navigate to the location of the program files
  4: Run the server by typing "python NetDesignServer.py"
  5: This window should read "The Server is ready to Receive"
@@ -22,4 +23,4 @@ Steps Required to execute:
  8: A GUI will appear asking for a filename.
  9: Type srcPic.png (or any other filename in this folder including srcPic2.png)
  10: Press enter
- 11: The server should receive testRead, send it back, and the client writes this to testWrite.txt
+ 11: The server should receive the file and write it to dstPic.png
