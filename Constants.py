@@ -8,3 +8,4 @@ ACK = bytes(b'\xFA')
 ServerName = 'localhost'
 # Port for socket to attach to
 ServerPort = 12000
+ClientPort = 12001

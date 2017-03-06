@@ -16,7 +16,6 @@ global fileRead
 global seqNum
 
 global clientSocket
-clientSocket = socket(AF_INET, SOCK_DGRAM)
 
 class App(Frame):
     # Tkinter initializing
@@ -66,6 +65,8 @@ class App(Frame):
         except:
             self.Quit()
             raise
+        clientSocket = socket(AF_INET, SOCK_DGRAM)
+        clientSocket.bind(('',ClientPort))
 
         seqNum = 0
         #packet creation and send initial packet
@@ -76,9 +77,9 @@ class App(Frame):
             udt_send(sndpkt, clientSocket)
             #begin state machine by entering wait ack 0 state
             if seqNum is 0:
-                self.wait_ack_0(sndpkt)
+                self.wait_ack_0(sndpkt, clientSocket)
             elif seqNum is 1:
-                self.wait_ack_1(sndpkt)
+                self.wait_ack_1(sndpkt, clientSocket)
             # seqNum increments, but can only be 0 or 1
             seqNum = (seqNum + 1) % 2
             packdat = fileRead.read(PacketSize)
@@ -97,7 +98,7 @@ class App(Frame):
     #### waits for ack 0 then sends next packet and goes to next state
     ## Paramters:
     ## prevpkt - previous packet for potential resending
-    def wait_ack_0(self, prevpkt):
+    def wait_ack_0(self, prevpkt, clientSocket):
         #if corrupt or wrong sn resend
         rcvpkt = rdt_rcv(clientSocket)
         while(CheckChecksum(rcvpkt)==False or IsAck(rcvpkt,1)==True):
@@ -111,7 +112,7 @@ class App(Frame):
     #### waits for ack 1 then sends next packet and goes to next state
     ## Paramters:
     ## prevpkt - previous packet for potential resending
-    def wait_ack_1(self, prevpkt):
+    def wait_ack_1(self, prevpkt, clientSocket):
         # if corrupt or wrong sn resend
         rcvpkt = rdt_rcv(clientSocket)
         while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, 0) == True):
