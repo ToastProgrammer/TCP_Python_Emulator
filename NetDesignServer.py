@@ -7,15 +7,11 @@ from binascii import *
 from SocketFunctions import *
 from DataFunctions import *
 from socket import *
-from .DataFunctions import *
-import Constants
+from Constants import *
 
 #setup socket
 serverSocket = socket(AF_INET, SOCK_DGRAM)
 serverSocket.bind(('',ServerPort))
-
-#define ACK
-ACK = bytearray(b'\xFA')
 
 #create destination file
 dstFile = 'dstPic.png'
@@ -23,6 +19,23 @@ dstFile = 'dstPic.png'
 oncethrough = 0
 
 print ('The server is ready to receive')
+
+fileWrite = open(dstFile, 'ab')
+
+
+while 1:
+    # Wait here until recieve message from socket
+    message = rdt_rcv(socket)
+    # Write local file
+    fileWrite = open(dstFile, 'ab')
+    while(message is not b''):
+        message = rdt_rcv(socket)
+        fileWrite.write(message)
+        fileWrite.seek(PacketSize)
+        # If EOF, close the file
+    if message == b"":
+        fileWrite.close()
+
 
 ######## Function:
 ######## wait_for_0
@@ -70,8 +83,8 @@ def wait_for_1():
 #### delivers the data from packet and appends to file
 ## Paramters:
 ## Data in
-def deliver_data(data):
-    fileWrite = open(dstFile, 'ab')
+def deliver_data(data, fileWrite):
+
     fileWrite.write(data)
     fileWrite.seek(PacketSize)
     #if EOF close file
