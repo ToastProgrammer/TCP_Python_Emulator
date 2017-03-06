@@ -26,7 +26,7 @@ def MakeChecksum(bString):
             tempBytes.append(x)
             checksum = ChecksumAddition(checksum,tempBytes)
             localIndex = 0
-    print(checksum)
+    #print(checksum)
     return checksum
 
 def CheckChecksum(bString):

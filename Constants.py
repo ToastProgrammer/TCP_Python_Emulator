@@ -1,5 +1,5 @@
 # Size of packets to send
-PacketSize = 2
+PacketSize = 1024
 # Message to signify end of file
 TerminateCharacter = b''
 
@@ -12,5 +12,5 @@ ClientPort = 12001
 
 
 #create destination file
-dstFile = 't.txt'
+dstFile = 'dstPic.bmp'
 

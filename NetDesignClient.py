@@ -5,42 +5,64 @@
 #"Computer Networking: A Top-Down Approach" by Keith Ross and James Kurose
 
 from tkinter import *
+from tkinter import ttk
 
 from DataFunctions import *
 from SocketFunctions import *
 from DataFunctions import *
 import Constants
+from time import time, sleep
 
 global root
 global fileRead
 global seqNum
 
+FILE_ENDG   = 2
+FILE_CURR   = 1
+FILE_STRT   = 0
+
 class App(Frame):
     # Tkinter initializing
     def __init__(self, master=None):
         super().__init__(master)
-        self.pack()
+        self.master.title("File Transfer Tool")
+        self.grid(sticky=E+W+N+S)
+        self.grid_columnconfigure(0, weight = 1)
+        self.grid_columnconfigure(1, weight = 1)
+        self.grid_columnconfigure(2, weight = 1)
 
-
-        self.instructions = Text(height=2, width=15)
-        self.instructions.pack()
-        self.instructions.insert(END, "Enter name of\n local file.")
-
-
-        # GUI will have place for string entry entryPath
-        # entryPath will be at the bottom of the GUI
+        #-------------------------------------------
+        self.instructions = Label(root, text = 'Enter file:')
+        self.instructions.grid(row = 1, column = 0, padx = 3, pady = 2, sticky=W)
+        #----------------
+        #Variable entry for file name
         self.entryPath = Entry()
-        self.entryPath.pack()
+        self.entryPath.grid(row = 2, column = 0, padx = 3, pady = 2, sticky=E+W+S, columnspan =1)
         self.contents = StringVar()
-
         # Default contents of variable will be null
         self.contents.set('')
         # tell the entry widget to watch this variable
         self.entryPath["textvariable"] = self.contents
-
         # Begin send_file member function on press of enter key
-        self.entryPath.bind('<Key-Return>',
-                            self.send_file)
+        self.entryPath.bind('<Key-Return>', self.send_file)
+
+        # -------------------------------------------
+
+        self.delayTime = StringVar()
+        self.delay = Label(root, textvariable = self.delayTime)
+        self.delay.grid(row=0, column = 1, padx = 3, pady = 2, sticky=W+N+S)
+        self.delayTime.set('Time: Not Taken')
+
+        #-------------------------------------------
+
+        self.percentBytes   = IntVar(self)
+        self.maxBytes       = IntVar(self)
+
+        self.pBar = ttk.Progressbar(self, orient = "horizontal",
+                                    length = 120, mode = "determinate",
+                                    value=0, maximum=100)
+        self.pBar.grid(row=0, column=2, padx = 3, pady = 2, sticky=E+W+N, columnspan=3)
+
 
     ######## Function:
     ######## send_file
@@ -56,6 +78,7 @@ class App(Frame):
         # Procedure to automatically close window if invalid file is given
         try:
             fileRead = open(srcFile, "rb")
+
         except FileNotFoundError:
             print(srcFile, "not found")
             self.Quit()
@@ -64,14 +87,20 @@ class App(Frame):
             self.Quit()
             raise
 
-        clientSocket = socket(AF_INET, SOCK_DGRAM)
+        self.maxBytes = fileRead.seek(0,FILE_ENDG)    # Get total # of bytes in file and set as roof for progress bar
+        self.Init_PBar()
+        fileRead.seek(0, FILE_STRT)                     # Reset file position
 
+        clientSocket = socket(AF_INET, SOCK_DGRAM)
         clientSocket.bind(('', ClientPort))
 
         seqNum = 0
         #packet creation and send initial packet
         packdat = fileRead.read(PacketSize)
-        while(packdat is not b''):
+        #start timer
+        delayValue = time()
+
+        while((packdat != b'')):
 
             sndpkt = PackageHeader(packdat,seqNum)
             udt_send(sndpkt, clientSocket, ServerPort)
@@ -83,9 +112,17 @@ class App(Frame):
             # seqNum increments, but can only be 0 or 1
             seqNum = (seqNum + 1) % 2
             packdat = fileRead.read(PacketSize)
+            self.percentBytes = 100*(fileRead.seek(0, FILE_CURR)/self.maxBytes) - 1 # Update current place in file on progress bar
+            self.Update_PBar()
         # Send a final message to the server to signify end
-        clientSocket.sendto(TerminateCharacter, (ServerName, ServerPort))
+        sndpkt = PackageHeader(packdat, seqNum)
+        udt_send(sndpkt, clientSocket, ServerPort)
 
+        delayValue = time() - delayValue
+        self.delayTime.set("Time: " + str(delayValue) + "seconds")
+
+        print("Done")
+        sleep(.1)
         clientSocket.close()
         fileRead.close()
 
@@ -120,6 +157,15 @@ class App(Frame):
             udt_send(prevpkt, clientSocket, ServerPort)
             rcvpkt = rdt_rcv(clientSocket)
 
+    def Init_PBar(self):
+        self.pBar["value"]=(0)
+        self.update_idletasks()
+
+    def Update_PBar(self):
+        self.pBar["value"] = (self.percentBytes)
+        self.update_idletasks()
+
+
 
     ######## Function:
     ######## Quit
@@ -132,5 +178,6 @@ class App(Frame):
 
 root = Tk()
 app = App(master=root)
+root.geometry("250x100+25+25")
 # Run the tkinter GUI app
 app.mainloop()

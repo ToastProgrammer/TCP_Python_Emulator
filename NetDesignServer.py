@@ -18,28 +18,24 @@ global writeIndex
 #### waits for packet with sn=0 then sends an ack and goes to next state
 ## Paramters:
 ## None
-def wait_for_0(serverSocket, onceThrough):
+def wait_for_0(serverSocket, onceThrough, writeIndex):
 
     rcvpkt = rdt_rcv(serverSocket)
-    moreData = True
     if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt,0):
-        print('recieved')
         data = UnpackageHeader(rcvpkt)
-        moreData = deliver_data(data)
+        moreData = deliver_data(data, writeIndex)
         sndpkt = PackageHeader(ACK,0)
         udt_send(sndpkt, serverSocket, ClientPort)
         onceThrough = True
         seqNum = 1
     elif onceThrough:
-        print('oncethrough')
         sndpkt = PackageHeader(ACK, 1)
         udt_send(sndpkt, serverSocket, ClientPort)
         onceThrough = False
         seqNum = 0
     else:
-        print('error')
         seqNum = 0
-    return onceThrough, moreData, seqNum
+    return onceThrough, moreData, seqNum, writeIndex
 
 
 ######## Function:
@@ -49,29 +45,24 @@ def wait_for_0(serverSocket, onceThrough):
 #### waits for packet with sn=1 then sends an ack and goes to next state
 ## Paramters:
 ## None
-def wait_for_1(serverSocket, onceThrough):
+def wait_for_1(serverSocket, onceThrough, writeIndex):
 
     rcvpkt = rdt_rcv(serverSocket)
-    print('rcvpkt', rcvpkt)
-    moreData = True
     if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt,1):
-        print('recieved')
         data = UnpackageHeader(rcvpkt)
-        moreData = deliver_data(data)
+        moreData = deliver_data(data, writeIndex)
         sndpkt = PackageHeader(ACK,1)
         udt_send(sndpkt, serverSocket, ClientPort)
         onceThrough = True
         seqNum = 0
     elif onceThrough:
-        print('oncethrough')
         sndpkt = PackageHeader(ACK, 0)
         udt_send(sndpkt, serverSocket, ClientPort)
         onceThrough = False
         seqNum = 1
     else:
-        print('error')
         seqNum = 1
-    return onceThrough, moreData, seqNum
+    return onceThrough, moreData, seqNum, writeIndex
 
 ######## Function:
 ######## deliver data
@@ -79,17 +70,17 @@ def wait_for_1(serverSocket, onceThrough):
 #### delivers the data from packet and appends to file
 ## Paramters:
 ## Data in
-def deliver_data(data):
+def deliver_data(data, writeIndex):
     moreData = True
     fileWrite = open(dstFile, 'ab')
     fileWrite.write(data)
-    fileWrite.seek(PacketSize)
+    fileWrite.seek(PacketSize * writeIndex)
     #if EOF close file
-    #writeIndex += 1
-    if data == b"":
+    writeIndex += 1
+    if data == b'':
         fileWrite.close()
         moreData = False
-    return moreData
+    return moreData, writeIndex
 
 #setup socket
 def ServerMain():
@@ -103,8 +94,6 @@ def ServerMain():
     while 1:
         # Wait here until recieve message from socket
 
-        # Write local file
-        fileWrite = open(dstFile, 'ab')
 
         seqNum = 0
         moreData = True
@@ -112,12 +101,9 @@ def ServerMain():
         writeIndex = 0
         while(moreData):
             if seqNum is 0:
-                print('0')
-                onceThrough, moreData, seqNum = wait_for_0(serverSocket, onceThrough)
-            if seqNum is 1:
-                print('1')
-                onceThrough, moreData, seqNum = wait_for_1(serverSocket, onceThrough)
-        break
-
+                onceThrough, moreData, seqNum, writeIndex = wait_for_0(serverSocket, onceThrough, writeIndex)
+            if(moreData):
+                if seqNum is 1:
+                    onceThrough, moreData, seqNum, writeIndex = wait_for_1(serverSocket, onceThrough, writeIndex)
 
 ServerMain()
