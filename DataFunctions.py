@@ -8,6 +8,7 @@ corruptDictionary = {0 : b'\x01', 1 : b'\x02', 2 : b'\x04', 3 : b'\x08',
 ##---------------Bitwise Manipulation-----------------##
 #------------------------------------------------------#
 
+##---------------Checksum-----------------##
 def ChecksumAddition(curSum, nextItem):
     tempInt = int.from_bytes(curSum, 'big') + int.from_bytes(nextItem, 'big')
     if tempInt >= 65536: #overflow
@@ -31,8 +32,6 @@ def MakeChecksum(bString):
 def CheckChecksum(bString):
     checkString = MakeChecksum(bString[2:])
     checkArray = bytearray(checkString)
-    print(bString)
-    print(type(bString))
     recievedArray = bytearray(bString)
     if (checkArray[1] == recievedArray[1]) and (checkArray[0] == recievedArray[0]):
         return True
@@ -45,6 +44,8 @@ def InsertChecksum(data, checksum):
 def RemoveChecksum(bString):
     return bString[2:]
 
+
+##---------------Sequence Number-----------------##
 def AddSequenceNum(seq, seqNum):
     return bytes([seqNum]) + seq
 
@@ -59,6 +60,8 @@ def CheckSequenceNum(seq, seqNum):
     else:
         return InSequence
 
+
+##---------------Packet Functions-----------------##
 def PackageHeader(data, seq, failPercent = 0):
     Segment = AddSequenceNum(data, seq)
     return InsertChecksum(Segment, MakeChecksum(Segment))

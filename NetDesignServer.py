@@ -9,7 +9,7 @@ from DataFunctions import *
 from socket import *
 from Constants import *
 
-global fileWrite
+global writeIndex
 
 #create destination file
 dstFile = 'dstPic.png'
@@ -26,7 +26,7 @@ def wait_for_0(serverSocket, onceThrough):
     rcvpkt = rdt_rcv(serverSocket)
     moreData = True
     if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt,0):
-        print('Checksum was valid')
+        print('recieved')
         data = UnpackageHeader(rcvpkt)
         moreData = deliver_data(data)
         sndpkt = PackageHeader(ACK,0)
@@ -34,13 +34,13 @@ def wait_for_0(serverSocket, onceThrough):
         onceThrough = True
         seqNum = 1
     elif onceThrough:
-        print('Checksum was invalid')
+        print('oncethrough')
         sndpkt = PackageHeader(ACK, 1)
         udt_send(sndpkt, serverSocket)
         onceThrough = False
         seqNum = 0
     else:
-        print("error")
+        print('error')
         seqNum = 0
     return onceThrough, moreData, seqNum
 
@@ -55,8 +55,10 @@ def wait_for_0(serverSocket, onceThrough):
 def wait_for_1(serverSocket, onceThrough):
 
     rcvpkt = rdt_rcv(serverSocket)
+    print('rcvpkt', rcvpkt)
     moreData = True
-    if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt,0):
+    if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt,1):
+        print('recieved')
         data = UnpackageHeader(rcvpkt)
         moreData = deliver_data(data)
         sndpkt = PackageHeader(ACK,1)
@@ -64,13 +66,14 @@ def wait_for_1(serverSocket, onceThrough):
         onceThrough = True
         seqNum = 0
     elif onceThrough:
+        print('oncethrough')
         sndpkt = PackageHeader(ACK, 0)
         udt_send(sndpkt, serverSocket)
         onceThrough = False
         seqNum = 1
     else:
+        print('error')
         seqNum = 1
-
     return onceThrough, moreData, seqNum
 
 ######## Function:
@@ -81,9 +84,11 @@ def wait_for_1(serverSocket, onceThrough):
 ## Data in
 def deliver_data(data):
     moreData = True
+    fileWrite = open(dstFile, 'ab')
     fileWrite.write(data)
-    fileWrite.seek(2048)
+    fileWrite.seek(PacketSize)
     #if EOF close file
+    #writeIndex += 1
     if data == b"":
         fileWrite.close()
         moreData = False
@@ -100,11 +105,9 @@ def ServerMain():
 
     print ('The server is ready to receive')
 
-    fileWrite = open(dstFile, 'ab')
+
 
     #oncethrough just becomes 1 if the state machine has started
-
-
 
     while 1:
         # Wait here until recieve message from socket
@@ -115,13 +118,14 @@ def ServerMain():
         seqNum = 0
         moreData = True
         onceThrough = True
-
+        writeIndex = 0
         while(moreData):
             if seqNum is 0:
+                print('0')
                 onceThrough, moreData, seqNum = wait_for_0(serverSocket, onceThrough)
             if seqNum is 1:
                 print('1')
-                onceThrough, moreData, seqNum= wait_for_1(serverSocket, onceThrough)
+                onceThrough, moreData, seqNum = wait_for_1(serverSocket, onceThrough)
         print("Finished")
 
 

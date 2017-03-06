@@ -100,7 +100,7 @@ class App(Frame):
     def wait_ack_0(self, prevpkt):
         #if corrupt or wrong sn resend
         rcvpkt = rdt_rcv(clientSocket)
-        while(CheckChecksum(rcvpkt)==False or IsAck(rcvpkt,0)==True):
+        while(CheckChecksum(rcvpkt)==False or IsAck(rcvpkt,1)==True):
             udt_send(prevpkt, clientSocket)
             rcvpkt = rdt_rcv(clientSocket)
 
@@ -114,7 +114,7 @@ class App(Frame):
     def wait_ack_1(self, prevpkt):
         # if corrupt or wrong sn resend
         rcvpkt = rdt_rcv(clientSocket)
-        while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, 1) == True):
+        while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, 0) == True):
             udt_send(prevpkt, clientSocket)
             rcvpkt = rdt_rcv(clientSocket)
 
