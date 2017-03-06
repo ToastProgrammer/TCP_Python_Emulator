@@ -31,7 +31,9 @@ def MakeChecksum(bString):
 def CheckChecksum(bString):
     checkString = MakeChecksum(bString[2:])
     checkArray = bytearray(checkString)
-    recievedArray = bytearray(bString[0:2])
+    print(bString)
+    print(type(bString))
+    recievedArray = bytearray(bString)
     if (checkArray[1] == recievedArray[1]) and (checkArray[0] == recievedArray[0]):
         return True
     else:

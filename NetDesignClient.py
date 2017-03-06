@@ -6,7 +6,7 @@
 
 from tkinter import *
 
-from .DataFunctions import *
+from DataFunctions import *
 from SocketFunctions import *
 from DataFunctions import *
 import Constants
@@ -81,9 +81,10 @@ class App(Frame):
                 self.wait_ack_1(sndpkt)
             # seqNum increments, but can only be 0 or 1
             seqNum = (seqNum + 1) % 2
-
+            packdat = fileRead.read(PacketSize)
         # Send a final message to the server to signify end
         clientSocket.sendto(TerminateCharacter, (ServerName, ServerPort))
+        clientSocket.close()
         fileRead.close()
 
 
@@ -97,10 +98,11 @@ class App(Frame):
     ## Paramters:
     ## prevpkt - previous packet for potential resending
     def wait_ack_0(self, prevpkt):
-        rcvpkt = rdt_rcv(clientSocket)
         #if corrupt or wrong sn resend
-        while(CheckChecksum(rcvpkt)==False or IsAck(rcvpkt,1)==True):
+        rcvpkt = rdt_rcv(clientSocket)
+        while(CheckChecksum(rcvpkt)==False or IsAck(rcvpkt,0)==True):
             udt_send(prevpkt, clientSocket)
+            rcvpkt = rdt_rcv(clientSocket)
 
     ######## Function:
     ######## wait_ack_1
@@ -110,11 +112,11 @@ class App(Frame):
     ## Paramters:
     ## prevpkt - previous packet for potential resending
     def wait_ack_1(self, prevpkt):
-        #if packet was received
-        rcvpkt = rdt_rcv(clientSocket)
         # if corrupt or wrong sn resend
+        rcvpkt = rdt_rcv(clientSocket)
         while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, 1) == True):
             udt_send(prevpkt, clientSocket)
+            rcvpkt = rdt_rcv(clientSocket)
 
 
     ######## Function:
