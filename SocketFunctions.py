@@ -9,9 +9,8 @@ import random
 #def Client_Wait(ServerName, ServerPort, seqNum, prevPacket):
 
 
-def udt_send(packet, socket):
-    socket.sendto(packet, (ServerName, ServerPort))
-    sleep(.001)
+def udt_send(packet, socket, port):
+    socket.sendto(packet, (ServerName, port))
 
 def rdt_rcv(socket):
     rcvpkt, clientAddress = socket.recvfrom(2048)

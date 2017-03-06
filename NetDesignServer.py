@@ -11,9 +11,6 @@ from Constants import *
 
 global writeIndex
 
-#create destination file
-dstFile = 'dstPic.png'
-
 ######## Function:
 ######## wait_for_0
 #### Purpose:
@@ -30,13 +27,13 @@ def wait_for_0(serverSocket, onceThrough):
         data = UnpackageHeader(rcvpkt)
         moreData = deliver_data(data)
         sndpkt = PackageHeader(ACK,0)
-        udt_send(sndpkt, serverSocket)
+        udt_send(sndpkt, serverSocket, ClientPort)
         onceThrough = True
         seqNum = 1
     elif onceThrough:
         print('oncethrough')
         sndpkt = PackageHeader(ACK, 1)
-        udt_send(sndpkt, serverSocket)
+        udt_send(sndpkt, serverSocket, ClientPort)
         onceThrough = False
         seqNum = 0
     else:
@@ -62,13 +59,13 @@ def wait_for_1(serverSocket, onceThrough):
         data = UnpackageHeader(rcvpkt)
         moreData = deliver_data(data)
         sndpkt = PackageHeader(ACK,1)
-        udt_send(sndpkt, serverSocket)
+        udt_send(sndpkt, serverSocket, ClientPort)
         onceThrough = True
         seqNum = 0
     elif onceThrough:
         print('oncethrough')
         sndpkt = PackageHeader(ACK, 0)
-        udt_send(sndpkt, serverSocket)
+        udt_send(sndpkt, serverSocket, ClientPort)
         onceThrough = False
         seqNum = 1
     else:
@@ -96,18 +93,12 @@ def deliver_data(data):
 
 #setup socket
 def ServerMain():
+
     serverSocket = socket(AF_INET, SOCK_DGRAM)
-    try:
-        serverSocket.bind(('',ServerPort))
-    except OSError:
-        serverSocket.close()
-        serverSocket.bind(('', ServerPort))
+
+    serverSocket.bind(('',ServerPort))
 
     print ('The server is ready to receive')
-
-
-
-    #oncethrough just becomes 1 if the state machine has started
 
     while 1:
         # Wait here until recieve message from socket
@@ -126,8 +117,7 @@ def ServerMain():
             if seqNum is 1:
                 print('1')
                 onceThrough, moreData, seqNum = wait_for_1(serverSocket, onceThrough)
-        print("Finished")
+        break
 
 
 ServerMain()
-print("Should not be here")

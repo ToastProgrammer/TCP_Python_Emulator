@@ -15,8 +15,6 @@ global root
 global fileRead
 global seqNum
 
-global clientSocket
-
 class App(Frame):
     # Tkinter initializing
     def __init__(self, master=None):
@@ -65,8 +63,10 @@ class App(Frame):
         except:
             self.Quit()
             raise
+
         clientSocket = socket(AF_INET, SOCK_DGRAM)
-        clientSocket.bind(('',ClientPort))
+
+        clientSocket.bind(('', ClientPort))
 
         seqNum = 0
         #packet creation and send initial packet
@@ -74,7 +74,7 @@ class App(Frame):
         while(packdat is not b''):
 
             sndpkt = PackageHeader(packdat,seqNum)
-            udt_send(sndpkt, clientSocket)
+            udt_send(sndpkt, clientSocket, ServerPort)
             #begin state machine by entering wait ack 0 state
             if seqNum is 0:
                 self.wait_ack_0(sndpkt, clientSocket)
@@ -85,6 +85,7 @@ class App(Frame):
             packdat = fileRead.read(PacketSize)
         # Send a final message to the server to signify end
         clientSocket.sendto(TerminateCharacter, (ServerName, ServerPort))
+
         clientSocket.close()
         fileRead.close()
 
@@ -102,7 +103,7 @@ class App(Frame):
         #if corrupt or wrong sn resend
         rcvpkt = rdt_rcv(clientSocket)
         while(CheckChecksum(rcvpkt)==False or IsAck(rcvpkt,1)==True):
-            udt_send(prevpkt, clientSocket)
+            udt_send(prevpkt, clientSocket, ServerPort)
             rcvpkt = rdt_rcv(clientSocket)
 
     ######## Function:
@@ -116,7 +117,7 @@ class App(Frame):
         # if corrupt or wrong sn resend
         rcvpkt = rdt_rcv(clientSocket)
         while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, 0) == True):
-            udt_send(prevpkt, clientSocket)
+            udt_send(prevpkt, clientSocket, ServerPort)
             rcvpkt = rdt_rcv(clientSocket)
 
 
