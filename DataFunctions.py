@@ -62,9 +62,14 @@ def CheckSequenceNum(seq, seqNum):
 
 
 ##---------------Packet Functions-----------------##
-def PackageHeader(data, seq, failPercent = 0):
+def PackageHeader(data, seq):
+
     Segment = AddSequenceNum(data, seq)
-    return InsertChecksum(Segment, MakeChecksum(Segment))
+    packet = InsertChecksum(Segment, MakeChecksum(Segment))
+    seed()
+    if(randint(0,100)<failchance):
+        packet = CorruptPacket(packet)
+    return packet
 
 def UnpackageHeader(segment):
     return (segment[3:])
