@@ -30,9 +30,9 @@ def wait_for_0(serverSocket, onceThrough, writeIndex):
         onceThrough = True
         seqNum = 1
     elif onceThrough:
-        sndpkt = PackageHeader(ACK, 1)
+        sndpkt = PackageHeader(ACK, 0)
         udt_send(sndpkt, serverSocket, ClientPort)
-        onceThrough = False
+        moreData = True
         seqNum = 0
     else:
         seqNum = 0
@@ -57,12 +57,13 @@ def wait_for_1(serverSocket, onceThrough, writeIndex):
         onceThrough = True
         seqNum = 0
     elif onceThrough:
-        sndpkt = PackageHeader(ACK, 0)
+        sndpkt = PackageHeader(ACK, 1)
         udt_send(sndpkt, serverSocket, ClientPort)
-        onceThrough = False
         seqNum = 1
+        moreData = True
     else:
         seqNum = 1
+        moreData = True
     return onceThrough, moreData, seqNum, writeIndex
 
 ######## Function:

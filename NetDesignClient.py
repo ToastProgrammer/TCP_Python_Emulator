@@ -48,12 +48,60 @@ class App(Frame):
 
         # -------------------------------------------
 
+        self.timeLabel = Label(root, text='Time taken:')
+        self.timeLabel.grid(row=0, column=1, padx=3, pady=2, sticky=E+S)
+
+        # ----------------
         self.delayTime = StringVar()
         self.delay = Label(root, textvariable = self.delayTime)
-        self.delay.grid(row=0, column = 1, padx = 3, pady = 2, sticky=W+N+S)
-        self.delayTime.set('Time: Not Taken')
+        self.delay.grid(row=0, column = 2, padx = 3, pady = 2, sticky=W+N+S)
+        self.delayTime.set('')
 
         #-------------------------------------------
+
+        self.dataCorStr = Label(root, text='Data Error %:')
+        self.dataCorStr.grid(row=1, column=1, padx=3, pady=2, sticky=E+S)
+        # ----------------
+        # Variable entry for % data corruption
+        self.dataCorPercent = Entry()
+        self.dataCorPercent.grid(row=1, column=2, padx=3, pady=2, sticky=E+S, columnspan=1)
+        self.dataCor = StringVar()
+        # Default contents of variable will be 0
+        self.dataCor.set('0')
+        # tell the entry widget to watch this variable
+        self.dataCorPercent["textvariable"] = self.dataCor
+
+        # -------------------------------------------
+
+        self.ackCorStr = Label(root, text='ACK Error %:')
+        self.ackCorStr.grid(row=2, column=1, padx=3, pady=2, sticky=E+S)
+        # ----------------
+        # Variable entry for % data corruption
+        self.ackCorPercent = Entry()
+        self.ackCorPercent.grid(row=2, column=2, padx=3, pady=2, sticky=E+S, columnspan=1)
+        self.ackCor = StringVar()
+        # Default contents of variable will be 0
+        self.ackCor.set('0')
+        # tell the entry widget to watch this variable
+        self.ackCorPercent["textvariable"] = self.ackCor
+
+        # -------------------------------------------
+
+        self.instructions = Label(root, text='Enter file:')
+        self.instructions.grid(row=1, column=0, padx=3, pady=2, sticky=W)
+        # ----------------
+        # Variable entry for file name
+        self.entryPath = Entry()
+        self.entryPath.grid(row=2, column=0, padx=3, pady=2, sticky=E + W + S, columnspan=1)
+        self.contents = StringVar()
+        # Default contents of variable will be null
+        self.contents.set('')
+        # tell the entry widget to watch this variable
+        self.entryPath["textvariable"] = self.contents
+        # Begin send_file member function on press of enter key
+        self.entryPath.bind('<Key-Return>', self.send_file)
+
+        # -------------------------------------------
 
         self.percentBytes   = IntVar(self)
         self.maxBytes       = IntVar(self)
@@ -102,7 +150,7 @@ class App(Frame):
 
         while((packdat != b'')):
 
-            sndpkt = PackageHeader(packdat,seqNum)
+            sndpkt = PackageHeader(packdat,seqNum, int(self.dataCor.get()))
             udt_send(sndpkt, clientSocket, ServerPort)
             #begin state machine by entering wait ack 0 state
             if seqNum is 0:
@@ -119,7 +167,7 @@ class App(Frame):
         udt_send(sndpkt, clientSocket, ServerPort)
 
         delayValue = time() - delayValue
-        self.delayTime.set("Time: " + str(delayValue) + "seconds")
+        self.delayTime.set("Time: " + str(format(delayValue, '.6g')) + " seconds")
 
         print("Done")
         sleep(.1)
@@ -139,9 +187,12 @@ class App(Frame):
     def wait_ack_0(self, prevpkt, clientSocket):
         #if corrupt or wrong sn resend
         rcvpkt = rdt_rcv(clientSocket)
-        while(CheckChecksum(rcvpkt)==False or IsAck(rcvpkt,1)==True):
+        print(rcvpkt)
+        while(CheckChecksum(rcvpkt)==False or IsAck(rcvpkt,0)==True):
             udt_send(prevpkt, clientSocket, ServerPort)
             rcvpkt = rdt_rcv(clientSocket)
+            if(randint(0,100) < int(self.ackCor.get())):
+                rcvpkt = CorruptPacket(rcvpkt)
 
     ######## Function:
     ######## wait_ack_1
@@ -153,9 +204,12 @@ class App(Frame):
     def wait_ack_1(self, prevpkt, clientSocket):
         # if corrupt or wrong sn resend
         rcvpkt = rdt_rcv(clientSocket)
-        while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, 0) == True):
+        print(rcvpkt)
+        while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, 1) == True):
             udt_send(prevpkt, clientSocket, ServerPort)
             rcvpkt = rdt_rcv(clientSocket)
+            if(randint(0,100) < int(self.ackCor.get())):
+                rcvpkt = CorruptPacket(rcvpkt)
 
     def Init_PBar(self):
         self.pBar["value"]=(0)
@@ -178,6 +232,6 @@ class App(Frame):
 
 root = Tk()
 app = App(master=root)
-root.geometry("250x100+25+25")
+root.geometry("360x100+25+25")
 # Run the tkinter GUI app
 app.mainloop()

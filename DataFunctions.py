@@ -26,8 +26,8 @@ def MakeChecksum(bString):
             tempBytes.append(x)
             checksum = ChecksumAddition(checksum,tempBytes)
             localIndex = 0
-    #print(checksum)
-    return checksum
+    intChecksum = int.from_bytes(checksum, 'big') ^ 0xFF    ##1's compliment
+    return intChecksum.to_bytes(2,'big')
 
 def CheckChecksum(bString):
     checkString = MakeChecksum(bString[2:])
@@ -39,6 +39,7 @@ def CheckChecksum(bString):
         return False
 
 def InsertChecksum(data, checksum):
+    print(checksum)
     return bytes(checksum + data)
 
 def RemoveChecksum(bString):
@@ -62,13 +63,13 @@ def CheckSequenceNum(seq, seqNum):
 
 
 ##---------------Packet Functions-----------------##
-def PackageHeader(data, seq):
+def PackageHeader(data, seq, corChance = 0):
 
     Segment = AddSequenceNum(data, seq)
     packet = InsertChecksum(Segment, MakeChecksum(Segment))
-    seed()
-    if(randint(0,100)<failchance):
+    if(randint(0,100)< corChance):
         packet = CorruptPacket(packet)
+        print('Corrupted')
     return packet
 
 def UnpackageHeader(segment):
@@ -81,5 +82,6 @@ def IsAck(segment, seqNum):
     return False
 
 def CorruptPacket(bString):
-    bString += (corruptDictionary[randint(0,7)])
+    bString += (corruptDictionary[randint(0,7)]) + (corruptDictionary[randint(0,7)])
+    print('Corrupted = ', bString)
     return bString
