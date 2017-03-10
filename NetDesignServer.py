@@ -21,6 +21,7 @@ global writeIndex
 def wait_for_0(serverSocket, onceThrough, writeIndex):
 
     rcvpkt = rdt_rcv(serverSocket)
+    moreData = True
     if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt,0):
         data = UnpackageHeader(rcvpkt)
         moreData = deliver_data(data, writeIndex)
