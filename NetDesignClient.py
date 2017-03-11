@@ -187,10 +187,10 @@ class App(Frame):
     def wait_ack_0(self, prevpkt, clientSocket):
         #if corrupt or wrong sn resend
         rcvpkt = rdt_rcv(clientSocket)
-        print(rcvpkt)
-        while(CheckChecksum(rcvpkt)==False or IsAck(rcvpkt,0)==True):
+        while(CheckChecksum(rcvpkt)==False or IsAck(rcvpkt,1)==True):
             udt_send(prevpkt, clientSocket, ServerPort)
             rcvpkt = rdt_rcv(clientSocket)
+            seed()
             if(randint(0,100) < int(self.ackCor.get())):
                 rcvpkt = CorruptPacket(rcvpkt)
 
@@ -204,11 +204,11 @@ class App(Frame):
     def wait_ack_1(self, prevpkt, clientSocket):
         # if corrupt or wrong sn resend
         rcvpkt = rdt_rcv(clientSocket)
-        print(rcvpkt)
-        while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, 1) == True):
+        while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, 0) == True):
             udt_send(prevpkt, clientSocket, ServerPort)
             rcvpkt = rdt_rcv(clientSocket)
-            if(randint(0,100) < int(self.ackCor.get())):
+            seed()
+            if(randint(0,100) <= int(self.ackCor.get())):
                 rcvpkt = CorruptPacket(rcvpkt)
 
     def Init_PBar(self):

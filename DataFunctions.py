@@ -39,7 +39,6 @@ def CheckChecksum(bString):
         return False
 
 def InsertChecksum(data, checksum):
-    print(checksum)
     return bytes(checksum + data)
 
 def RemoveChecksum(bString):
@@ -51,13 +50,13 @@ def AddSequenceNum(seq, seqNum):
     return bytes([seqNum]) + seq
 
 def RemoveSequenceNum(seq):
-    return seq[1:]
+    return seq[3:]
 
 def CheckSequenceNum(seq, seqNum):
     InSequence = False
-    if seq[2] is seqNum:
+    if seq[2] == seqNum:
         InSequence = True
-        return InSequence, RemoveSequenceNum(seq)
+        return InSequence
     else:
         return InSequence
 
@@ -76,7 +75,7 @@ def UnpackageHeader(segment):
     return (segment[3:])
 
 def IsAck(segment, seqNum):
-    if (UnpackageHeader(segment) is ACK):
+    if (UnpackageHeader(segment) == ACK):
         if CheckSequenceNum(segment,seqNum):
             return True
     return False

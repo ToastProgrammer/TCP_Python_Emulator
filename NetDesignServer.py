@@ -99,7 +99,7 @@ def ServerMain():
 
         seqNum = 0
         moreData = True
-        onceThrough = True
+        onceThrough = False
         writeIndex = 0
         while(moreData):
             if seqNum is 0:
