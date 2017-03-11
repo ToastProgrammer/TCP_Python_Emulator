@@ -153,10 +153,15 @@ class App(Frame):
             sndpkt = PackageHeader(packdat,seqNum, int(self.dataCor.get()))
             udt_send(sndpkt, clientSocket, ServerPort)
             #begin state machine by entering wait ack 0 state
-            if seqNum is 0:
-                self.wait_ack_0(sndpkt, clientSocket)
-            elif seqNum is 1:
-                self.wait_ack_1(sndpkt, clientSocket)
+            # if corrupt or wrong sn resend
+            rcvpkt = rdt_rcv(clientSocket)
+            while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, seqNum) == True):
+                prevpkt = PackageHeader(packdat,seqNum, int(self.dataCor.get()))
+                udt_send(prevpkt, clientSocket, ServerPort)
+                rcvpkt = rdt_rcv(clientSocket)
+                seed()
+                if (randint(0, 100) < int(self.ackCor.get())):
+                    rcvpkt = CorruptPacket(rcvpkt)
             # seqNum increments, but can only be 0 or 1
             seqNum = (seqNum + 1) % 2
             packdat = fileRead.read(PacketSize)
@@ -174,42 +179,6 @@ class App(Frame):
         clientSocket.close()
         fileRead.close()
 
-
-
-
-    ######## Function:
-    ######## wait_ack_0
-    #### Purpose:
-    #### one of the two states in this state machine,
-    #### waits for ack 0 then sends next packet and goes to next state
-    ## Paramters:
-    ## prevpkt - previous packet for potential resending
-    def wait_ack_0(self, prevpkt, clientSocket):
-        #if corrupt or wrong sn resend
-        rcvpkt = rdt_rcv(clientSocket)
-        while(CheckChecksum(rcvpkt)==False or IsAck(rcvpkt,1)==True):
-            udt_send(prevpkt, clientSocket, ServerPort)
-            rcvpkt = rdt_rcv(clientSocket)
-            seed()
-            if(randint(0,100) < int(self.ackCor.get())):
-                rcvpkt = CorruptPacket(rcvpkt)
-
-    ######## Function:
-    ######## wait_ack_1
-    #### Purpose:
-    #### one of the two states in this state machine,
-    #### waits for ack 1 then sends next packet and goes to next state
-    ## Paramters:
-    ## prevpkt - previous packet for potential resending
-    def wait_ack_1(self, prevpkt, clientSocket):
-        # if corrupt or wrong sn resend
-        rcvpkt = rdt_rcv(clientSocket)
-        while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, 0) == True):
-            udt_send(prevpkt, clientSocket, ServerPort)
-            rcvpkt = rdt_rcv(clientSocket)
-            seed()
-            if(randint(0,100) <= int(self.ackCor.get())):
-                rcvpkt = CorruptPacket(rcvpkt)
 
     def Init_PBar(self):
         self.pBar["value"]=(0)
