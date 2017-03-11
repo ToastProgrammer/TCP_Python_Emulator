@@ -150,17 +150,19 @@ class App(Frame):
 
         while((packdat != b'')):
 
-            sndpkt = PackageHeader(packdat,seqNum, int(self.dataCor.get()))
+            sndpkt = PackageHeader(packdat, seqNum, int(self.dataCor.get()))
             udt_send(sndpkt, clientSocket, ServerPort)
             #begin state machine by entering wait ack 0 state
             # if corrupt or wrong sn resend
             rcvpkt = rdt_rcv(clientSocket)
-            while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, seqNum) == True):
+            if (randint(0, 100) <= int(self.ackCor.get())):
+                rcvpkt = CorruptPacket(rcvpkt)
+            while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, seqNum) == False):
                 prevpkt = PackageHeader(packdat,seqNum, int(self.dataCor.get()))
                 udt_send(prevpkt, clientSocket, ServerPort)
                 rcvpkt = rdt_rcv(clientSocket)
                 seed()
-                if (randint(0, 100) < int(self.ackCor.get())):
+                if (randint(0, 100) <= int(self.ackCor.get())):
                     rcvpkt = CorruptPacket(rcvpkt)
             # seqNum increments, but can only be 0 or 1
             seqNum = (seqNum + 1) % 2

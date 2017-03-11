@@ -53,12 +53,9 @@ def RemoveSequenceNum(seq):
     return seq[3:]
 
 def CheckSequenceNum(seq, seqNum):
-    InSequence = False
     if seq[2] == seqNum:
-        InSequence = True
-        return InSequence
-    else:
-        return InSequence
+        return True
+    return False
 
 
 ##---------------Packet Functions-----------------##
@@ -68,7 +65,6 @@ def PackageHeader(data, seq, corChance = 0):
     packet = InsertChecksum(Segment, MakeChecksum(Segment))
     if(randint(0,100)< corChance):
         packet = CorruptPacket(packet)
-        print('Corrupted')
     return packet
 
 def UnpackageHeader(segment):
@@ -82,5 +78,4 @@ def IsAck(segment, seqNum):
 
 def CorruptPacket(bString):
     bString += (corruptDictionary[randint(0,7)]) + (corruptDictionary[randint(0,7)])
-    print('Corrupted = ', bString)
     return bString
