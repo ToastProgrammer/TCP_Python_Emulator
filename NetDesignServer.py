@@ -21,16 +21,16 @@ global writeIndex
 def wait_for_0(serverSocket, onceThrough, writeIndex):
 
     rcvpkt = rdt_rcv(serverSocket)
-    moreData = True
-    if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt,0):
+    moreData = True     # Boolean for if more data for current file expected
+    if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt,0): # If Checksum & seq num correct
         data = UnpackageHeader(rcvpkt)
-        moreData = deliver_data(data, writeIndex)
-        sndpkt = PackageHeader(ACK,0)
+        moreData = deliver_data(data, writeIndex)   # Write correct data to file
+        sndpkt = PackageHeader(ACK,0)   # Package CORRECT ack
         udt_send(sndpkt, serverSocket, ClientPort)
         onceThrough = True
         seqNum = 1
     else:
-        sndpkt = PackageHeader(ACK, 1)
+        sndpkt = PackageHeader(ACK, 1)  # Package INCORRECT ack
         udt_send(sndpkt, serverSocket, ClientPort)
         moreData = True
         seqNum = 0
