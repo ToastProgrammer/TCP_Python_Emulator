@@ -43,6 +43,7 @@ class App(Frame):
         self.estimatedRTT   = DefaultRTT
         self.devRTT         = DefaultDev
         self.seqNum         = 0
+        self.concurrentThreads = 0
 
         # -------------------------------------------
 
@@ -55,7 +56,7 @@ class App(Frame):
         self.delay.grid(row=0, column = 2, padx = 3, pady = 2, sticky=W+N+S)
         self.delayTime.set('')
 
-        #-------------------------------------------
+        # -------- D a t a   C o r r u p t i o n --------
 
         self.dataCorStr = Label(root, text='Data Error %:')
         self.dataCorStr.grid(row=1, column=1, padx=3, pady=2, sticky=E+S)
@@ -69,7 +70,7 @@ class App(Frame):
         # tell the entry widget to watch this variable
         self.dataCorPercent["textvariable"] = self.dataCor
 
-        # -------------------------------------------
+        # --------- A c k   C o r r u p t i o n ---------
 
         self.ackCorStr = Label(root, text='ACK Error %:')
         self.ackCorStr.grid(row=2, column=1, padx=3, pady=2, sticky=E+S)
@@ -82,6 +83,34 @@ class App(Frame):
         self.ackCor.set('0')
         # tell the entry widget to watch this variable
         self.ackCorPercent["textvariable"] = self.ackCor
+
+        ## -------------- D a t a   L o s s --------------
+
+        self.dataLossStr = Label(root, text='Data Loss %:')
+        self.dataLossStr.grid(row=3, column=1, padx=3, pady=2, sticky=E + S)
+        # ----------------
+        # Variable entry for % data corruption
+        self.dataLossPercent = Entry()
+        self.dataLossPercent.grid(row=3, column=2, padx=3, pady=2, sticky=E + S, columnspan=1)
+        self.dataLoss = StringVar()
+        # Default contents of variable will be 0
+        self.dataLoss.set('0')
+        # tell the entry widget to watch this variable
+        self.dataLossPercent["textvariable"] = self.dataLoss
+
+        # --------------- A c k   L o s s ---------------
+
+        self.ackLossStr = Label(root, text='Ack Loss %:')
+        self.ackLossStr.grid(row=4, column=1, padx=3, pady=2, sticky=E + S)
+        # ----------------
+        # Variable entry for % data corruption
+        self.ackLossPercent = Entry()
+        self.ackLossPercent.grid(row=4, column=2, padx=3, pady=2, sticky=E + S, columnspan=1)
+        self.ackLoss = StringVar()
+        # Default contents of variable will be 0
+        self.ackLoss.set('0')
+        # tell the entry widget to watch this variable
+        self.ackLossPercent["textvariable"] = self.ackLoss
 
         # -------------------------------------------
 
@@ -140,20 +169,24 @@ class App(Frame):
         clientSocket = socket(AF_INET, SOCK_DGRAM)
         clientSocket.bind(('', ClientPort))
 
-        seqNum = 0
+        self.seqNum = 0
         packdat = fileRead.read(PacketSize) #packet creation
         delayValue = clock() #start timer for overall transaction
 
         while((packdat != b'')):
-            sndpkt = PackageHeader(packdat, self.seqNum, int(self.dataCor.get()))
-            udt_send(sndpkt, clientSocket, ServerPort)  #begin state machine by entering wait ack 0 state
+            sndpkt = PackageHeader(packdat, self.seqNum)
+            udt_send(sndpkt, clientSocket, ServerPort,
+                     corChance = int(self.dataCor.get()),
+                     lossChance = int(self.dataLoss.get())
+                     )  #begin state machine by entering wait ack 0 state
+            #print(sndpkt)
 
             self.threadMutex.acquire() # Lock to block other threads
             self.currentPkts[self.seqNum] = [  # Add entry into dictionary containing current time and the timout thread ID
                 clock(),
                 Timer(  # Start timeout counter by calling a new thread
                     self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
-                    args=[sndpkt, clientSocket, ServerPort]),  # arguments for Timeout()
+                    args=[sndpkt, clientSocket, ServerPort, int(self.dataCor.get()), int(self.dataLoss.get())]),  # arguments for Timeout()
                 ]
             self.currentPkts[self.seqNum][IndexTimer].start()
 
@@ -161,13 +194,15 @@ class App(Frame):
 
             rcvpkt = rdt_rcv(clientSocket)
             rcvpkt = CorruptCheck(rcvpkt, int(self.ackCor.get()))
-            while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, self.seqNum) == False): # if corrupt or wrong sn wait
-                print(CheckChecksum(rcvpkt))
+            ackLoss = LossCheck(int(self.ackLoss.get()))    # Check to see if ack was "lost"
+            while (ackLoss == True or CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, self.seqNum) == False): # if corrupt or wrong sn wait
+                #print(CheckChecksum(rcvpkt))
                 rcvpkt = rdt_rcv(clientSocket)
-                print(self.seqNum)
-                print(rcvpkt)
+                #print(self.seqNum)
+                #print(rcvpkt)
                 seed()
                 rcvpkt = CorruptCheck(rcvpkt, int(self.ackCor.get()))
+                ackLoss = LossCheck(int(self.ackLoss.get()))    # Check to see if ack was "lost"
 
             self.EndTimeout() # Stop timeout
             self.seqNum = (self.seqNum + 1) % 2   # seqNum increments, but can only be 0 or 1
@@ -176,7 +211,7 @@ class App(Frame):
             self.percentBytes = 100*(fileRead.seek(0, FILE_CURR)/self.maxBytes) - 1 # Update current place in file on progress bar
             self.Update_PBar()
         sndpkt = PackageHeader(packdat, self.seqNum) # Send a final message to the server to signify end
-        udt_send(sndpkt, clientSocket, ServerPort)
+        udt_send(sndpkt, clientSocket, ServerPort, corChance = 0)
 
         delayValue = clock() - delayValue
         self.delayTime.set("Time: " + str(format(delayValue, '.6g')) + " seconds")
@@ -191,26 +226,29 @@ class App(Frame):
     # Function to be pointed to be Timer() thread creation. Will activate after RTT unless cancelled by being acked.
     #If not cancelled before RTT, will resend the packet, create a new thread, and update the dictionary of thread
     #IDs with this new thread.
-    def Timeout(self, sndPkt, clientSocket, ServerPort):
+    def Timeout(self, sndPkt, clientSocket, ServerPort, corChance, lossChance):
         #print("Making Timeout", int(clock()))
         self.threadMutex.acquire()  # Lock to block other threads
-
-        udt_send(sndPkt, clientSocket, ServerPort)
+        self.concurrentThreads += 1
+        udt_send(sndPkt, clientSocket, ServerPort, corChance, lossChance)
         self.currentPkts[self.seqNum] = [  # Add entry into dictionary containing current time and the timout thread ID
             clock(),
             Timer(  # Start timeout counter by calling a new thread
                 self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
-                args=[sndPkt, clientSocket, ServerPort]),  # arguments for Timeout()
+                args=[sndPkt, clientSocket, ServerPort, corChance, lossChance]),  # arguments for Timeout()
         ]
         self.currentPkts[self.seqNum][IndexTimer].start()
 
         #print('Making Timeout')
         self.threadMutex.release()  # Release to allow other threads to modify
+        self.concurrentThreads -= 1
+        return  # exits thread
 
     def EndTimeout(self):
         curTime = clock()
         self.threadMutex.acquire()  # Lock to block other threads
-
+        if self.concurrentThreads != 0:
+            print("Current Threads", self.concurrentThreads)
         sampleRTT = curTime - self.currentPkts[self.seqNum][IndexStartT]
         self.currentPkts[self.seqNum][IndexTimer].cancel()  # Stop the timeout timer
         self.estimatedRTT = (1 - Alpha)*self.estimatedRTT + (Alpha * sampleRTT)
@@ -243,6 +281,6 @@ class App(Frame):
 
 root = Tk()
 app = App(master=root)
-root.geometry("340x100+25+25")
+root.geometry("340x160+25+25")
 # Run the tkinter GUI app
 app.mainloop()

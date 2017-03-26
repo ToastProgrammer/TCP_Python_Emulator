@@ -69,11 +69,10 @@ def CheckSequenceNum(seq, seqNum):
 
 ##---------------Packet Functions-----------------##
 # Add checksum, seq#, and possible corruption
-def PackageHeader(data, seq, corChance = 0):
+def PackageHeader(data, seq):
 
     Segment = AddSequenceNum(data, seq)
     packet = InsertChecksum(Segment, MakeChecksum(Segment))
-    packet = CorruptCheck(packet, corChance)
     return packet
 
 # Return data from packet
@@ -89,6 +88,7 @@ def IsAck(segment, seqNum):
 
 # Determine if to corrupt packet or not
 def CorruptCheck(pkt, corChance):
+    seed()
     if (randint(0, 100) < corChance):
         pkt = CorruptPacket(pkt)
     return pkt
@@ -97,3 +97,10 @@ def CorruptCheck(pkt, corChance):
 def CorruptPacket(bString):
     bString += (corruptDictionary[randint(0,7)]) + (corruptDictionary[randint(0,7)])
     return bString
+
+def LossCheck(lossChance):
+    seed()
+    if (randint(0, 100) < lossChance):
+        return True     # If a hit, then the packet was lost
+    else:
+        return False    # Otherwise the packet is sent

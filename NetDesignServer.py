@@ -8,6 +8,7 @@ from SocketFunctions import *
 from DataFunctions import *
 from socket import *
 from Constants import *
+from os import remove
 
 global writeIndex
 
@@ -21,10 +22,17 @@ global writeIndex
 def wait_for_0(serverSocket, onceThrough, writeIndex):
 
     rcvpkt = rdt_rcv(serverSocket)
+    if onceThrough == False:
+        try:
+            remove(dstFile)
+        except:
+            pass
+
+    #print(rcvpkt)
     moreData = True     # Boolean for if more data for current file expected
     if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt,0): # If Checksum & seq num correct
         data = UnpackageHeader(rcvpkt)
-        moreData = deliver_data(data, writeIndex)   # Write correct data to file
+        moreData, writeIndex = deliver_data(data, writeIndex)   # Write correct data to file
         sndpkt = PackageHeader(ACK,0)   # Package CORRECT ack
         udt_send(sndpkt, serverSocket, ClientPort)
         onceThrough = True
@@ -47,9 +55,15 @@ def wait_for_0(serverSocket, onceThrough, writeIndex):
 def wait_for_1(serverSocket, onceThrough, writeIndex):
 
     rcvpkt = rdt_rcv(serverSocket)
+    if onceThrough == False:
+        try:
+            remove(dstFile)
+            open(dstFile, 'ab')
+        except:
+            pass
     if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt,1):
         data = UnpackageHeader(rcvpkt)
-        moreData = deliver_data(data, writeIndex)
+        moreData, writeIndex = deliver_data(data, writeIndex)
         sndpkt = PackageHeader(ACK,1)
         udt_send(sndpkt, serverSocket, ClientPort)
         onceThrough = True
@@ -70,10 +84,10 @@ def wait_for_1(serverSocket, onceThrough, writeIndex):
 def deliver_data(data, writeIndex):
     moreData = True
     fileWrite = open(dstFile, 'ab')
+    fileWrite.seek(PacketSize * writeIndex, 0)
     fileWrite.write(data)
-    fileWrite.seek(PacketSize * writeIndex)
     #if EOF close file
-    writeIndex += 1
+    writeIndex += PacketSize
     if data == b'':
         fileWrite.close()
         moreData = False
@@ -90,8 +104,7 @@ def ServerMain():
 
     while 1:
         # Wait here until recieve message from socket
-
-
+        print("Outer Loop")
         seqNum = 0
         moreData = True
         onceThrough = False
@@ -99,8 +112,10 @@ def ServerMain():
         while(moreData):
             if seqNum is 0:
                 onceThrough, moreData, seqNum, writeIndex = wait_for_0(serverSocket, onceThrough, writeIndex)
+            print('0', moreData)
             if(moreData):
                 if seqNum is 1:
                     onceThrough, moreData, seqNum, writeIndex = wait_for_1(serverSocket, onceThrough, writeIndex)
+            print('1', moreData)
 
 ServerMain()
