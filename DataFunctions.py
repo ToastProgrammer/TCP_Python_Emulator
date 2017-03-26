@@ -89,7 +89,7 @@ def IsAck(segment, seqNum):
 
 # Determine if to corrupt packet or not
 def CorruptCheck(pkt, corChance):
-    if (randint(0, 100) <= corChance):
+    if (randint(0, 100) < corChance):
         pkt = CorruptPacket(pkt)
     return pkt
 

@@ -14,7 +14,7 @@ ClientPort = 12001
 #create destination file
 dstFile = 'dstPic.bmp'
 
-Alpha = 0.1
+Alpha = 0.125
 Beta = 0.25
-DefaultRTT = 0.02
-DefaultDev = 0.00125
+DefaultRTT = 0.2
+DefaultDev = 0.01

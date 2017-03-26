@@ -11,7 +11,7 @@ from DataFunctions import *
 from SocketFunctions import *
 from DataFunctions import *
 import Constants
-from time import time, sleep
+from time import clock, sleep
 from threading import *
 
 global root
@@ -42,6 +42,7 @@ class App(Frame):
         self.threadMutex    = RLock()  # mutex for pkt dict control
         self.estimatedRTT   = DefaultRTT
         self.devRTT         = DefaultDev
+        self.seqNum         = 0
 
         # -------------------------------------------
 
@@ -141,41 +142,43 @@ class App(Frame):
 
         seqNum = 0
         packdat = fileRead.read(PacketSize) #packet creation
-        delayValue = time() #start timer for overall transaction
+        delayValue = clock() #start timer for overall transaction
 
         while((packdat != b'')):
-            sndpkt = PackageHeader(packdat, seqNum, int(self.dataCor.get()))
+            sndpkt = PackageHeader(packdat, self.seqNum, int(self.dataCor.get()))
             udt_send(sndpkt, clientSocket, ServerPort)  #begin state machine by entering wait ack 0 state
 
             self.threadMutex.acquire() # Lock to block other threads
-            print("WTF")
-            self.currentPkts[seqNum] = [  # Add entry into dictionary containing current time and the timout thread ID
-                time(),
+            self.currentPkts[self.seqNum] = [  # Add entry into dictionary containing current time and the timout thread ID
+                clock(),
                 Timer(  # Start timeout counter by calling a new thread
                     self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
-                    args=[seqNum, sndpkt, clientSocket, ServerPort]),  # arguments for Timeout()
+                    args=[sndpkt, clientSocket, ServerPort]),  # arguments for Timeout()
                 ]
-            self.currentPkts[seqNum][IndexTimer].start()
+            self.currentPkts[self.seqNum][IndexTimer].start()
 
             self.threadMutex.release()  # Release to allow other threads to modify
 
             rcvpkt = rdt_rcv(clientSocket)
             rcvpkt = CorruptCheck(rcvpkt, int(self.ackCor.get()))
-            while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, seqNum) == False): # if corrupt or wrong sn wait
+            while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, self.seqNum) == False): # if corrupt or wrong sn wait
+                print(CheckChecksum(rcvpkt))
                 rcvpkt = rdt_rcv(clientSocket)
+                print(self.seqNum)
+                print(rcvpkt)
                 seed()
                 rcvpkt = CorruptCheck(rcvpkt, int(self.ackCor.get()))
 
-            self.EndTimeout(seqNum) # Stop timeout
-            seqNum = (seqNum + 1) % 2   # seqNum increments, but can only be 0 or 1
+            self.EndTimeout() # Stop timeout
+            self.seqNum = (self.seqNum + 1) % 2   # seqNum increments, but can only be 0 or 1
 
             packdat = fileRead.read(PacketSize)
             self.percentBytes = 100*(fileRead.seek(0, FILE_CURR)/self.maxBytes) - 1 # Update current place in file on progress bar
             self.Update_PBar()
-        sndpkt = PackageHeader(packdat, seqNum) # Send a final message to the server to signify end
+        sndpkt = PackageHeader(packdat, self.seqNum) # Send a final message to the server to signify end
         udt_send(sndpkt, clientSocket, ServerPort)
 
-        delayValue = time() - delayValue
+        delayValue = clock() - delayValue
         self.delayTime.set("Time: " + str(format(delayValue, '.6g')) + " seconds")
 
         print("Done")
@@ -188,31 +191,31 @@ class App(Frame):
     # Function to be pointed to be Timer() thread creation. Will activate after RTT unless cancelled by being acked.
     #If not cancelled before RTT, will resend the packet, create a new thread, and update the dictionary of thread
     #IDs with this new thread.
-    def Timeout(self, seqNum, sndPkt, clientSocket, ServerPort):
-        print("Making Timeout", int(time()))
+    def Timeout(self, sndPkt, clientSocket, ServerPort):
+        #print("Making Timeout", int(clock()))
         self.threadMutex.acquire()  # Lock to block other threads
 
         udt_send(sndPkt, clientSocket, ServerPort)
-        self.currentPkts[seqNum] = [  # Add entry into dictionary containing current time and the timout thread ID
-            time(),
+        self.currentPkts[self.seqNum] = [  # Add entry into dictionary containing current time and the timout thread ID
+            clock(),
             Timer(  # Start timeout counter by calling a new thread
                 self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
-                args=[seqNum, sndPkt, clientSocket, ServerPort]),  # arguments for Timeout()
+                args=[sndPkt, clientSocket, ServerPort]),  # arguments for Timeout()
         ]
-        self.currentPkts[seqNum][IndexTimer].start()
+        self.currentPkts[self.seqNum][IndexTimer].start()
 
-        print('Making Timeout')
+        #print('Making Timeout')
         self.threadMutex.release()  # Release to allow other threads to modify
 
-    def EndTimeout(self, seqNum):
-        curTime = time()
+    def EndTimeout(self):
+        curTime = clock()
         self.threadMutex.acquire()  # Lock to block other threads
 
-        sampleRTT = curTime - self.currentPkts[seqNum][IndexStartT]
-        self.currentPkts[seqNum][IndexTimer].cancel()  # Stop the timeout timer
+        sampleRTT = curTime - self.currentPkts[self.seqNum][IndexStartT]
+        self.currentPkts[self.seqNum][IndexTimer].cancel()  # Stop the timeout timer
         self.estimatedRTT = (1 - Alpha)*self.estimatedRTT + (Alpha * sampleRTT)
         self.devRTT = (1 - Beta)*self.devRTT + Beta*abs(sampleRTT - self.estimatedRTT)
-        self.currentPkts.pop(seqNum, None)  # Remove dictionary key for seqNum, or do nothing if key DNE
+        self.currentPkts.pop(self.seqNum, None)  # Remove dictionary key for seqNum, or do nothing if key DNE
 
         self.threadMutex.release()  # Release to allow other threads to modify
 
