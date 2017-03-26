@@ -12,6 +12,7 @@ from SocketFunctions import *
 from DataFunctions import *
 import Constants
 from time import time, sleep
+from threading import *
 
 global root
 global fileRead
@@ -20,6 +21,10 @@ global seqNum
 FILE_ENDG   = 2
 FILE_CURR   = 1
 FILE_STRT   = 0
+
+# Indexe numbers in thread dictionary tuple
+IndexTimer  = 1
+IndexStartT = 0
 
 class App(Frame):
     # Tkinter initializing
@@ -31,20 +36,12 @@ class App(Frame):
         self.grid_columnconfigure(1, weight = 1)
         self.grid_columnconfigure(2, weight = 1)
 
-        #-------------------------------------------
-        self.instructions = Label(root, text = 'Enter file:')
-        self.instructions.grid(row = 1, column = 0, padx = 3, pady = 2, sticky=W)
-        #----------------
-        #Variable entry for file name
-        self.entryPath = Entry()
-        self.entryPath.grid(row = 2, column = 0, padx = 3, pady = 2, sticky=E+W+S, columnspan =1)
-        self.contents = StringVar()
-        # Default contents of variable will be null
-        self.contents.set('')
-        # tell the entry widget to watch this variable
-        self.entryPath["textvariable"] = self.contents
-        # Begin send_file member function on press of enter key
-        self.entryPath.bind('<Key-Return>', self.send_file)
+        # ------- V A R I A B L E   I N I T S -------
+
+        self.currentPkts    = {} # Dictionary of current thread IDs. Future-proofing.
+        self.threadMutex    = RLock()  # mutex for pkt dict control
+        self.estimatedRTT   = DefaultRTT
+        self.devRTT         = DefaultDev
 
         # -------------------------------------------
 
@@ -143,34 +140,39 @@ class App(Frame):
         clientSocket.bind(('', ClientPort))
 
         seqNum = 0
-        #packet creation and send initial packet
-        packdat = fileRead.read(PacketSize)
-        #start timer
-        delayValue = time()
+        packdat = fileRead.read(PacketSize) #packet creation
+        delayValue = time() #start timer for overall transaction
 
         while((packdat != b'')):
-
             sndpkt = PackageHeader(packdat, seqNum, int(self.dataCor.get()))
-            udt_send(sndpkt, clientSocket, ServerPort)
-            #begin state machine by entering wait ack 0 state
-            # if corrupt or wrong sn resend
+            udt_send(sndpkt, clientSocket, ServerPort)  #begin state machine by entering wait ack 0 state
+
+            self.threadMutex.acquire() # Lock to block other threads
+            print("WTF")
+            self.currentPkts[seqNum] = [  # Add entry into dictionary containing current time and the timout thread ID
+                time(),
+                Timer(  # Start timeout counter by calling a new thread
+                    self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
+                    args=[seqNum, sndpkt, clientSocket, ServerPort]),  # arguments for Timeout()
+                ]
+            self.currentPkts[seqNum][IndexTimer].start()
+
+            self.threadMutex.release()  # Release to allow other threads to modify
+
             rcvpkt = rdt_rcv(clientSocket)
-            if (randint(0, 100) <= int(self.ackCor.get())):
-                rcvpkt = CorruptPacket(rcvpkt)
-            while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, seqNum) == False):
-                prevpkt = PackageHeader(packdat,seqNum, int(self.dataCor.get()))
-                udt_send(prevpkt, clientSocket, ServerPort)
+            rcvpkt = CorruptCheck(rcvpkt, int(self.ackCor.get()))
+            while (CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, seqNum) == False): # if corrupt or wrong sn wait
                 rcvpkt = rdt_rcv(clientSocket)
                 seed()
-                if (randint(0, 100) <= int(self.ackCor.get())):
-                    rcvpkt = CorruptPacket(rcvpkt)
-            # seqNum increments, but can only be 0 or 1
-            seqNum = (seqNum + 1) % 2
+                rcvpkt = CorruptCheck(rcvpkt, int(self.ackCor.get()))
+
+            self.EndTimeout(seqNum) # Stop timeout
+            seqNum = (seqNum + 1) % 2   # seqNum increments, but can only be 0 or 1
+
             packdat = fileRead.read(PacketSize)
             self.percentBytes = 100*(fileRead.seek(0, FILE_CURR)/self.maxBytes) - 1 # Update current place in file on progress bar
             self.Update_PBar()
-        # Send a final message to the server to signify end
-        sndpkt = PackageHeader(packdat, seqNum)
+        sndpkt = PackageHeader(packdat, seqNum) # Send a final message to the server to signify end
         udt_send(sndpkt, clientSocket, ServerPort)
 
         delayValue = time() - delayValue
@@ -181,6 +183,40 @@ class App(Frame):
         clientSocket.close()
         fileRead.close()
 
+    # -------------------------------- T I M E O U T   F U N C T I O N S --------------------------------
+
+    # Function to be pointed to be Timer() thread creation. Will activate after RTT unless cancelled by being acked.
+    #If not cancelled before RTT, will resend the packet, create a new thread, and update the dictionary of thread
+    #IDs with this new thread.
+    def Timeout(self, seqNum, sndPkt, clientSocket, ServerPort):
+        print("Making Timeout", int(time()))
+        self.threadMutex.acquire()  # Lock to block other threads
+
+        udt_send(sndPkt, clientSocket, ServerPort)
+        self.currentPkts[seqNum] = [  # Add entry into dictionary containing current time and the timout thread ID
+            time(),
+            Timer(  # Start timeout counter by calling a new thread
+                self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
+                args=[seqNum, sndPkt, clientSocket, ServerPort]),  # arguments for Timeout()
+        ]
+        self.currentPkts[seqNum][IndexTimer].start()
+
+        print('Making Timeout')
+        self.threadMutex.release()  # Release to allow other threads to modify
+
+    def EndTimeout(self, seqNum):
+        curTime = time()
+        self.threadMutex.acquire()  # Lock to block other threads
+
+        sampleRTT = curTime - self.currentPkts[seqNum][IndexStartT]
+        self.currentPkts[seqNum][IndexTimer].cancel()  # Stop the timeout timer
+        self.estimatedRTT = (1 - Alpha)*self.estimatedRTT + (Alpha * sampleRTT)
+        self.devRTT = (1 - Beta)*self.devRTT + Beta*abs(sampleRTT - self.estimatedRTT)
+        self.currentPkts.pop(seqNum, None)  # Remove dictionary key for seqNum, or do nothing if key DNE
+
+        self.threadMutex.release()  # Release to allow other threads to modify
+
+    # -------------------------------- T K I N T E R   F U N C T I O N S --------------------------------
 
     def Init_PBar(self):
         self.pBar["value"]=(0)
@@ -189,7 +225,6 @@ class App(Frame):
     def Update_PBar(self):
         self.pBar["value"] = (self.percentBytes)
         self.update_idletasks()
-
 
 
     ######## Function:
@@ -201,8 +236,10 @@ class App(Frame):
     def Quit(self):
         root.destroy()
 
+
+
 root = Tk()
 app = App(master=root)
-root.geometry("360x100+25+25")
+root.geometry("340x100+25+25")
 # Run the tkinter GUI app
 app.mainloop()

@@ -24,3 +24,4 @@ Steps Required to execute:
  9: Type srcPic.png (or any other filename in this folder including srcPic2.png)
  10: Press enter
  11: The server should receive the file and write it to dstPic.png
+ 12: To simulate Data or Ack packet bit error, simply change their relative percentages in the UI

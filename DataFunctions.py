@@ -73,8 +73,7 @@ def PackageHeader(data, seq, corChance = 0):
 
     Segment = AddSequenceNum(data, seq)
     packet = InsertChecksum(Segment, MakeChecksum(Segment))
-    if(randint(0,100)< corChance):
-        packet = CorruptPacket(packet)
+    packet = CorruptCheck(packet, corChance)
     return packet
 
 # Return data from packet
@@ -87,6 +86,12 @@ def IsAck(segment, seqNum):
         if CheckSequenceNum(segment,seqNum):
             return True
     return False
+
+# Determine if to corrupt packet or not
+def CorruptCheck(pkt, corChance):
+    if (randint(0, 100) <= corChance):
+        pkt = CorruptPacket(pkt)
+    return pkt
 
 # Add random bit error to packet.
 def CorruptPacket(bString):
