@@ -18,3 +18,11 @@ Alpha = 0.125
 Beta = 0.25
 DefaultRTT = 0.2
 DefaultDev = 0.01
+
+SendFSM0 = "SendFSM0a.gif"
+SendFSM1 = "SendFSMwa0.gif"
+SendFSM2 = "SendFSM1a.gif"
+SendFSM3 = "SendFSMwa1.gif"
+
+RecvFSM0 = "RecvFSM0.gif"
+RecvFSM1 = "RecvFSM1.gif"

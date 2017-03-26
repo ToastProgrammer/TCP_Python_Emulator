@@ -26,6 +26,9 @@ FILE_STRT   = 0
 IndexTimer  = 1
 IndexStartT = 0
 
+SendFSMDict = {0: SendFSM0, 1:SendFSM1, 2:SendFSM2, 3:SendFSM3}
+RecieveFSMDict = {0:RecvFSM0, 1:RecvFSM1}
+
 class App(Frame):
     # Tkinter initializing
     def __init__(self, master=None):
@@ -40,12 +43,27 @@ class App(Frame):
 
         self.currentPkts    = {} # Dictionary of current thread IDs. Future-proofing.
         self.threadMutex    = RLock()  # mutex for pkt dict control
-        self.estimatedRTT   = DefaultRTT
-        self.devRTT         = DefaultDev
-        self.seqNum         = 0
-        self.concurrentThreads = 0
+        self.estimatedRTT   = DefaultRTT    # Initial EstimatedRTT
+        self.devRTT         = DefaultDev    # Initial EstimatedRTTDeviation
+        self.seqNum         = 0             # Initial Sequence number
+        self.concurrentThreads = 0          # Number of threads - Main thread running | Debug
 
-        # -------------------------------------------
+        # ----------- F S M   D i s p l a y s -----------
+        self.sendFSMLabel = Label(root, text='Sender FSM')
+        self.sendFSMLabel.grid(row=5, column=0, padx=40,  pady=1, sticky=W+S)
+
+        self.sendFSM = Label()
+        self.sendFSM.grid(row=6, column=0, pady=1, sticky=E+S)
+        self.UpdateFSM(0, True) # Update the image of the Sender FSM
+
+        self.recvFSMLabel = Label(root, text='Reciever FSM')
+        self.recvFSMLabel.grid(row=5, column=1, padx=40, pady=1, sticky=E+S, columnspan = 2)
+
+        self.recvFSM = Label()
+        self.recvFSM.grid(row=6, column=1, padx=3, pady=1, sticky=E+S, columnspan = 2)
+        self.UpdateFSM(0, False)    # Update the image of the Reciever FSM
+
+        # ----------- T i m e   D i s p l a y -----------
 
         self.timeLabel = Label(root, text='Time taken:')
         self.timeLabel.grid(row=0, column=1, padx=3, pady=2, sticky=E+S)
@@ -53,7 +71,7 @@ class App(Frame):
         # ----------------
         self.delayTime = StringVar()
         self.delay = Label(root, textvariable = self.delayTime)
-        self.delay.grid(row=0, column = 2, padx = 3, pady = 2, sticky=W+N+S)
+        self.delay.grid(row=0, column=2, padx=3, pady=2, sticky=W+N+S)
         self.delayTime.set('')
 
         # -------- D a t a   C o r r u p t i o n --------
@@ -63,7 +81,7 @@ class App(Frame):
         # ----------------
         # Variable entry for % data corruption
         self.dataCorPercent = Entry()
-        self.dataCorPercent.grid(row=1, column=2, padx=3, pady=2, sticky=E+S, columnspan=1)
+        self.dataCorPercent.grid(row=1, column=2, padx=3, pady=2, sticky=W+S, columnspan=1)
         self.dataCor = StringVar()
         # Default contents of variable will be 0
         self.dataCor.set('0')
@@ -77,7 +95,7 @@ class App(Frame):
         # ----------------
         # Variable entry for % data corruption
         self.ackCorPercent = Entry()
-        self.ackCorPercent.grid(row=2, column=2, padx=3, pady=2, sticky=E+S, columnspan=1)
+        self.ackCorPercent.grid(row=2, column=2, padx=3, pady=2, sticky=W+S, columnspan=1)
         self.ackCor = StringVar()
         # Default contents of variable will be 0
         self.ackCor.set('0')
@@ -87,11 +105,11 @@ class App(Frame):
         ## -------------- D a t a   L o s s --------------
 
         self.dataLossStr = Label(root, text='Data Loss %:')
-        self.dataLossStr.grid(row=3, column=1, padx=3, pady=2, sticky=E + S)
+        self.dataLossStr.grid(row=3, column=1, padx=3, pady=2, sticky=E+S)
         # ----------------
         # Variable entry for % data corruption
         self.dataLossPercent = Entry()
-        self.dataLossPercent.grid(row=3, column=2, padx=3, pady=2, sticky=E + S, columnspan=1)
+        self.dataLossPercent.grid(row=3, column=2, padx=3, pady=2, sticky=W+S, columnspan=1)
         self.dataLoss = StringVar()
         # Default contents of variable will be 0
         self.dataLoss.set('0')
@@ -101,18 +119,18 @@ class App(Frame):
         # --------------- A c k   L o s s ---------------
 
         self.ackLossStr = Label(root, text='Ack Loss %:')
-        self.ackLossStr.grid(row=4, column=1, padx=3, pady=2, sticky=E + S)
+        self.ackLossStr.grid(row=4, column=1, padx=3, pady=2, sticky=E+S)
         # ----------------
         # Variable entry for % data corruption
         self.ackLossPercent = Entry()
-        self.ackLossPercent.grid(row=4, column=2, padx=3, pady=2, sticky=E + S, columnspan=1)
+        self.ackLossPercent.grid(row=4, column=2, padx=3, pady=2, sticky=W+S, columnspan=1)
         self.ackLoss = StringVar()
         # Default contents of variable will be 0
         self.ackLoss.set('0')
         # tell the entry widget to watch this variable
         self.ackLossPercent["textvariable"] = self.ackLoss
 
-        # -------------------------------------------
+        # ------------ S o u r c e   F i l e ------------
 
         self.instructions = Label(root, text='Enter file:')
         self.instructions.grid(row=1, column=0, padx=3, pady=2, sticky=W)
@@ -128,17 +146,17 @@ class App(Frame):
         # Begin send_file member function on press of enter key
         self.entryPath.bind('<Key-Return>', self.send_file)
 
-        # -------------------------------------------
+        # ----------- P r o g r e s s   B a r -----------
 
         self.percentBytes   = IntVar(self)
         self.maxBytes       = IntVar(self)
 
         self.pBar = ttk.Progressbar(self, orient = "horizontal",
-                                    length = 120, mode = "determinate",
+                                    length = 150, mode = "determinate",
                                     value=0, maximum=100)
         self.pBar.grid(row=0, column=2, padx = 3, pady = 2, sticky=E+W+N, columnspan=3)
 
-
+    # ------------------------------------ M A I N   F U N C T I O N ------------------------------------
     ######## Function:
     ######## send_file
     #### Purpose:
@@ -174,6 +192,7 @@ class App(Frame):
         delayValue = clock() #start timer for overall transaction
 
         while((packdat != b'')):
+            self.UpdateFSM(self.seqNum *2 + 1, True)    # Update FSM diagram to "Wait ACK seqNum"
             sndpkt = PackageHeader(packdat, self.seqNum)
             udt_send(sndpkt, clientSocket, ServerPort,
                      corChance = int(self.dataCor.get()),
@@ -188,7 +207,7 @@ class App(Frame):
                     self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
                     args=[sndpkt, clientSocket, ServerPort, int(self.dataCor.get()), int(self.dataLoss.get())]),  # arguments for Timeout()
                 ]
-            self.currentPkts[self.seqNum][IndexTimer].start()
+            self.currentPkts[self.seqNum][IndexTimer].start()   # Initiate the new thread
 
             self.threadMutex.release()  # Release to allow other threads to modify
 
@@ -196,15 +215,13 @@ class App(Frame):
             rcvpkt = CorruptCheck(rcvpkt, int(self.ackCor.get()))
             ackLoss = LossCheck(int(self.ackLoss.get()))    # Check to see if ack was "lost"
             while (ackLoss == True or CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, self.seqNum) == False): # if corrupt or wrong sn wait
-                #print(CheckChecksum(rcvpkt))
                 rcvpkt = rdt_rcv(clientSocket)
-                #print(self.seqNum)
-                #print(rcvpkt)
                 seed()
                 rcvpkt = CorruptCheck(rcvpkt, int(self.ackCor.get()))
                 ackLoss = LossCheck(int(self.ackLoss.get()))    # Check to see if ack was "lost"
-
             self.EndTimeout() # Stop timeout
+            self.UpdateFSM(self.seqNum, False)
+            self.UpdateFSM((self.seqNum + 2) % 3, True) # Update FSM diagram to "Wait for seqNum Above"
             self.seqNum = (self.seqNum + 1) % 2   # seqNum increments, but can only be 0 or 1
 
             packdat = fileRead.read(PacketSize)
@@ -213,11 +230,11 @@ class App(Frame):
         sndpkt = PackageHeader(packdat, self.seqNum) # Send a final message to the server to signify end
         udt_send(sndpkt, clientSocket, ServerPort, corChance = 0)
 
-        delayValue = clock() - delayValue
+        delayValue = clock() - delayValue   # Calculate total time taken to transfer and display it
         self.delayTime.set("Time: " + str(format(delayValue, '.6g')) + " seconds")
 
         print("Done")
-        sleep(.1)
+        sleep(.1)   # Wait to allow server to close first
         clientSocket.close()
         fileRead.close()
 
@@ -227,7 +244,6 @@ class App(Frame):
     #If not cancelled before RTT, will resend the packet, create a new thread, and update the dictionary of thread
     #IDs with this new thread.
     def Timeout(self, sndPkt, clientSocket, ServerPort, corChance, lossChance):
-        #print("Making Timeout", int(clock()))
         self.threadMutex.acquire()  # Lock to block other threads
         self.concurrentThreads += 1
         udt_send(sndPkt, clientSocket, ServerPort, corChance, lossChance)
@@ -239,16 +255,15 @@ class App(Frame):
         ]
         self.currentPkts[self.seqNum][IndexTimer].start()
 
-        #print('Making Timeout')
         self.threadMutex.release()  # Release to allow other threads to modify
-        self.concurrentThreads -= 1
+        self.concurrentThreads -= 1 # Deincrement current threads as exit
         return  # exits thread
 
     def EndTimeout(self):
-        curTime = clock()
+        curTime = clock()   # Immediately take clock first to get better RTT estimation
         self.threadMutex.acquire()  # Lock to block other threads
         if self.concurrentThreads != 0:
-            print("Current Threads", self.concurrentThreads)
+            print("Current Threads", self.concurrentThreads)    # Error Checking
         sampleRTT = curTime - self.currentPkts[self.seqNum][IndexStartT]
         self.currentPkts[self.seqNum][IndexTimer].cancel()  # Stop the timeout timer
         self.estimatedRTT = (1 - Alpha)*self.estimatedRTT + (Alpha * sampleRTT)
@@ -259,13 +274,30 @@ class App(Frame):
 
     # -------------------------------- T K I N T E R   F U N C T I O N S --------------------------------
 
+    # Initiate progress bar to 0%
     def Init_PBar(self):
         self.pBar["value"]=(0)
         self.update_idletasks()
 
+    # Update progress bar to percentage
     def Update_PBar(self):
         self.pBar["value"] = (self.percentBytes)
         self.update_idletasks()
+
+    # Update either FSM graphic
+    def UpdateFSM(self, state, isSender = True):
+        if isSender:
+            self.fileName = SendFSMDict[state]
+        else:
+            self.fileName = RecieveFSMDict[state]
+        photo = PhotoImage(file=self.fileName)
+        if isSender:
+            self.sendFSM.configure(image=photo)
+            self.sendFSM.image = photo
+        else:
+            self.recvFSM.configure(image=photo)
+            self.recvFSM.image = photo
+        self.update_idletasks() # Actually tell tkinter to update itself
 
 
     ######## Function:
@@ -281,6 +313,6 @@ class App(Frame):
 
 root = Tk()
 app = App(master=root)
-root.geometry("340x160+25+25")
+root.geometry("365x320+25+25")
 # Run the tkinter GUI app
 app.mainloop()
