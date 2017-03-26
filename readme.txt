@@ -21,7 +21,7 @@ Steps Required to execute:
  6: Open second cmd and repeat step 2
  7: Run the client by typing "python NetDesignClient.py"
  8: A GUI will appear asking for a filename.
- 9: Type srcPic.png (or any other filename in this folder including srcPic2.png)
+ 9: Type srcPic.png (or any other filename in this folder including srcPic2.bmp)
  10: Press enter
  11: The server should receive the file and write it to dstPic.png
  12: To simulate Data or Ack packet bit error, simply change their relative percentages in the UI
