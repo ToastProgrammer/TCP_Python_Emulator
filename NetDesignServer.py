@@ -13,69 +13,6 @@ from os import remove
 global writeIndex
 
 ######## Function:
-######## wait_for_0
-#### Purpose:
-#### one of the two states in this state machine,
-#### waits for packet with sn=0 then sends an ack and goes to next state
-## Paramters:
-## None
-def wait_for_0(serverSocket, onceThrough, writeIndex):
-
-    rcvpkt = rdt_rcv(serverSocket)
-    if onceThrough == False:
-        try:
-            remove(dstFile)
-        except:
-            pass
-
-    #print(rcvpkt)
-    moreData = True     # Boolean for if more data for current file expected
-    if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt,0): # If Checksum & seq num correct
-        data = UnpackageHeader(rcvpkt)
-        moreData, writeIndex = deliver_data(data, writeIndex)   # Write correct data to file
-        sndpkt = PackageHeader(ACK,0)   # Package CORRECT ack
-        udt_send(sndpkt, serverSocket, ClientPort)
-        onceThrough = True
-        seqNum = 1
-    else:
-        sndpkt = PackageHeader(ACK, 1)  # Package INCORRECT ack
-        udt_send(sndpkt, serverSocket, ClientPort)
-        moreData = True
-        seqNum = 0
-    return onceThrough, moreData, seqNum, writeIndex
-
-
-######## Function:
-######## wait_for_1
-#### Purpose:
-#### one of the two states in this state machine,
-#### waits for packet with sn=1 then sends an ack and goes to next state
-## Paramters:
-## None
-def wait_for_1(serverSocket, onceThrough, writeIndex):
-
-    rcvpkt = rdt_rcv(serverSocket)
-    if onceThrough == False:
-        try:
-            remove(dstFile)
-            open(dstFile, 'ab')
-        except:
-            pass
-    if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt,1):
-        data = UnpackageHeader(rcvpkt)
-        moreData, writeIndex = deliver_data(data, writeIndex)
-        sndpkt = PackageHeader(ACK,1)
-        udt_send(sndpkt, serverSocket, ClientPort)
-        onceThrough = True
-        seqNum = 0
-    else:
-        sndpkt = PackageHeader(ACK, 0)
-        udt_send(sndpkt, serverSocket, ClientPort)
-        seqNum = 1
-        moreData = True
-    return onceThrough, moreData, seqNum, writeIndex
-
-######## Function:
 ######## deliver data
 #### Purpose:
 #### delivers the data from packet and appends to file
@@ -93,7 +30,12 @@ def deliver_data(data, writeIndex):
         moreData = False
     return moreData, writeIndex
 
-#setup socket
+######## Function:
+######## ServerMain
+#### Purpose:
+#### contains the FSM for GBN file receive
+## Paramters:
+## None
 def ServerMain():
 
     serverSocket = socket(AF_INET, SOCK_DGRAM)
@@ -107,15 +49,24 @@ def ServerMain():
         print("Outer Loop")
         seqNum = 0
         moreData = True
-        onceThrough = False
+        #onceThrough = False
         writeIndex = 0
+        expectedseqnum = 1
+        sndpkt = PackageHeader(ACK,0)
         while(moreData):
-            if seqNum is 0:
-                onceThrough, moreData, seqNum, writeIndex = wait_for_0(serverSocket, onceThrough, writeIndex)
-            print('0', moreData)
-            if(moreData):
-                if seqNum is 1:
-                    onceThrough, moreData, seqNum, writeIndex = wait_for_1(serverSocket, onceThrough, writeIndex)
-            print('1', moreData)
+            rcvpkt = rdt_rcv(serverSocket)
+
+            if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, expectedseqnum):  # If Checksum & seq num correct
+                data = UnpackageHeader(rcvpkt)
+                moreData, writeIndex = deliver_data(data, writeIndex)  # Write correct data to file
+                sndpkt = PackageHeader(ACK, expectedseqnum)  # Package CORRECT ack
+                udt_send(sndpkt, serverSocket, ClientPort)
+                #onceThrough = True
+                expectedseqnum+=1
+            else:
+                udt_send(sndpkt, serverSocket, ClientPort)
+
+
+
 
 ServerMain()

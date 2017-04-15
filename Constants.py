@@ -18,6 +18,7 @@ Alpha = 0.125
 Beta = 0.25
 DefaultRTT = 0.2
 DefaultDev = 0.01
+WindowSize = 8;
 
 SendFSM0 = "SendFSM0a.gif"
 SendFSM1 = "SendFSMwa0.gif"
