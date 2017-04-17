@@ -186,7 +186,7 @@ class App(Frame):
                                      )
                                ]
         self.recieveThread  = Thread(None, self.RecieveThread, "Recieving Thread",
-                                     args=[self.clientSocket, int(self.ackCor.get()), int(self.ackLoss.get())
+                                     args=[self.clientSocket, int(self.dataCor.get()), int(self.dataLoss.get()), int(self.ackCor.get()), int(self.ackLoss.get())
                                            ]
                                      )  # Initialize Recieve Thread
 
@@ -238,7 +238,7 @@ class App(Frame):
         self.clientSocket.close()
 
     # ----------------------------------- R E C I E V E   T H R E A D -----------------------------------
-    def RecieveThread(self, clientSocket, ackCor, ackLoss):
+    def RecieveThread(self, clientSocket, dataCor, dataLoss, ackCor, ackLoss):
 
         global transDone    # Global bool to communicate status of transmission between threads
 
@@ -246,13 +246,16 @@ class App(Frame):
             rcvpkt = rdt_rcv(clientSocket)
             rcvpkt = CorruptCheck(rcvpkt, ackCor)
             ackLoss = LossCheck(ackLoss)  # Check to see if ack was "lost"
-            seqAck = GetSequenceNum(rcvpkt)
             if (ackLoss == False and CheckChecksum(rcvpkt) == True):
-                self.EndTimeout()
-                print("base:", self.base,"seqAck", seqAck)
-                while(self.base < seqAck):
-                    del self.sndpkt[self.base]  # delete ACKed packet
-                    self.base += 1  # increment base for each time it is acked; Sliding Window
+                oldBase = self.base
+                self.base = GetSequenceNum(rcvpkt) + 1
+                if self.base == self.nextSeqNum:
+                    self.EndTimeout()
+                    while(oldBase < self.base):
+                        del self.sndpkt[oldBase]  # delete ACKed packet
+                        oldBase += 1  # increment base for each time it is acked; Sliding Window
+                else:
+                    self.StartTimeout(clientSocket, ServerPort, dataCor, dataLoss)
 
                 print("Recievethread base:",self.base)
                 print("Recievethread nextSeqNum:",self.nextSeqNum)
@@ -301,6 +304,7 @@ class App(Frame):
         self.timer[1].start()  # Initiate the new thread
 
         self.threadMutex.release()  # Release to allow other threads to modify
+        
 
     def Timeout(self, clientSocket, ServerPort, corChance, lossChance):
         print("Timing Out")
