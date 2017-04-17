@@ -47,22 +47,22 @@ def ServerMain():
     while 1:
         # Wait here until recieve message from socket
         print("Outer Loop")
-        seqNum = 0
         moreData = True
         #onceThrough = False
         writeIndex = 0
-        expectedseqnum = 1
-        sndpkt = PackageHeader(ACK,0)
+        expectedSeqNum = 1
+        sndpkt = PackageHeader(ACK,expectedSeqNum)
         while(moreData):
             rcvpkt = rdt_rcv(serverSocket)
 
-            if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, expectedseqnum):  # If Checksum & seq num correct
+            if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, expectedSeqNum):  # If Checksum & seq num correct
+                expectedSeqNum += 1
+                print(expectedSeqNum)
                 data = UnpackageHeader(rcvpkt)
                 moreData, writeIndex = deliver_data(data, writeIndex)  # Write correct data to file
-                sndpkt = PackageHeader(ACK, expectedseqnum)  # Package CORRECT ack
+                sndpkt = PackageHeader(ACK, expectedSeqNum)  # Package CORRECT ack
                 udt_send(sndpkt, serverSocket, ClientPort)
                 #onceThrough = True
-                expectedseqnum+=1
             else:
                 udt_send(sndpkt, serverSocket, ClientPort)
 

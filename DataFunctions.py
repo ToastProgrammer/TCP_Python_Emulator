@@ -60,11 +60,15 @@ def AddSequenceNum(seq, seqNum):
 def RemoveSequenceNum(seq):
     return seq[3:]
 
+def GetSequenceNum(seq):
+    return seq[2]
+
 # Check sequence number from recieved packet
 def CheckSequenceNum(seq, seqNum):
-    if seq[2] == seqNum:
+    if GetSequenceNum(seq) == seqNum:
         return True
     return False
+
 
 
 ##---------------Packet Functions-----------------##

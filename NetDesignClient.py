@@ -14,9 +14,13 @@ import Constants
 from time import clock, sleep
 from threading import *
 
+# --------------------------------- G L O B A L   V A R I A B L E S ---------------------------------
+
 global root
 global fileRead
+transDone = False
 
+# -------------------------------- C O N S T A N T S   D E F I N E S --------------------------------
 FILE_ENDG   = 2
 FILE_CURR   = 1
 FILE_STRT   = 0
@@ -27,6 +31,8 @@ IndexStartT = 0
 
 SendFSMDict = {0: SendFSM0, 1:SendFSM1, 2:SendFSM2, 3:SendFSM3}
 RecieveFSMDict = {0:RecvFSM0, 1:RecvFSM1}
+
+
 
 class App(Frame):
     # Tkinter initializing
@@ -40,12 +46,13 @@ class App(Frame):
 
         # ------- V A R I A B L E   I N I T S -------
 
-
+        self.currentPackets = {}
         self.threadMutex    = RLock()  # mutex for pkt dict control
         self.estimatedRTT   = DefaultRTT    # Initial EstimatedRTT
         self.devRTT         = DefaultDev    # Initial EstimatedRTTDeviation
         self.nextSeqNum         = 1             # Initial Sequence number
         self.base               = 1
+        self.finalPacket        = None
         self.concurrentThreads  = 0          # Number of threads - Main thread running | Debug
         self.sndpkt             = {}
 
@@ -150,7 +157,7 @@ class App(Frame):
         # ----------- P r o g r e s s   B a r -----------
 
         self.percentBytes   = IntVar(self)
-        self.maxBytes       = IntVar(self)
+        self.maxBytes       = 1000000000
 
         self.pBar = ttk.Progressbar(self, orient = "horizontal",
                                     length = 150, mode = "determinate",
@@ -167,12 +174,96 @@ class App(Frame):
 
     def send_file(self, event):
 
-        # Get variable obtained via GUI
-        srcFile = self.contents.get()
+        global transDone
+
+        self.clientSocket = socket(AF_INET, SOCK_DGRAM)
+        self.clientSocket.bind(('', ClientPort))
+        self.timer          = [clock(),
+                               Timer(self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
+                                     args=[ self.clientSocket, ServerPort,
+                                            int(self.dataCor.get()), int(self.dataLoss.get())
+                                            ]
+                                     )
+                               ]
+        self.recieveThread  = Thread(None, self.RecieveThread, "Recieving Thread",
+                                     args=[self.clientSocket, int(self.ackCor.get()), int(self.ackLoss.get())
+                                           ]
+                                     )  # Initialize Recieve Thread
+
+        self.packingThread  = Thread(None, self.PackingThread, "Packet-Making Thread",
+                                     args=[self.contents.get()] # Get file name obtained from GUI
+                                     )
+        transDone = False  # variable to notify
+
+        self.Init_PBar()    # Init progress bar to 0
+
+        delayValue = clock() #start timer for overall transaction
+
+        # Initialize recieving thread and starts packet creation thread
+        self.recieveThread.start()
+        self.packingThread.start()
+
+        # While finalPacket isn't yet declared or reached
+        while((self.finalPacket == None) or (self.finalPacket != self.nextSeqNum - 1)):
+            if (self.nextSeqNum < self.base+WindowSize and len(self.sndpkt) > 0): #If next sequence number in window
+                                                                                  #Checks if any pkts ready
+                udt_send(packet = self.sndpkt[self.nextSeqNum], socket = self.clientSocket, port = ServerPort,
+                     corChance = int(self.dataCor.get()), lossChance = int(self.dataLoss.get())
+                     )
+
+                print("Next sent seq num:", self.nextSeqNum)
+                if (self.base == self.nextSeqNum):
+                    self.StartTimeout(self.clientSocket, ServerPort, int(self.dataCor.get()), int(self.dataLoss.get()))
+                self.nextSeqNum += 1
+
+
+                self.percentBytes = 100*((self.base * PacketSize)/self.maxBytes) - 1 # Update current place in file on progress bar
+                self.Update_PBar()
+
+        transDone = True   # Signal recieve thread of completion
+
+        self.packingThread.join()
+        self.recieveThread.join()   # wait for recieve thread to conclude
+
+        self.maxBytes       = 1000000 #reset some default values
+        self.finalPacket    = None
+        self.base           = 1
+        self.nextSeqNum     = 1
+
+        delayValue = clock() - delayValue   # Calculate total time taken to transfer and display it
+        self.delayTime.set("Time: " + str(format(delayValue, '.6g')) + " seconds")
+
+        print("Done")
+        sleep(.1)   # Wait to allow server to close first
+        self.clientSocket.close()
+
+    # ----------------------------------- R E C I E V E   T H R E A D -----------------------------------
+    def RecieveThread(self, clientSocket, ackCor, ackLoss):
+
+        global transDone    # Global bool to communicate status of transmission between threads
+
+        while(transDone == False):
+            rcvpkt = rdt_rcv(clientSocket)
+            rcvpkt = CorruptCheck(rcvpkt, ackCor)
+            ackLoss = LossCheck(ackLoss)  # Check to see if ack was "lost"
+            seqAck = GetSequenceNum(rcvpkt)
+            if (ackLoss == False and CheckChecksum(rcvpkt) == True):
+                self.EndTimeout()
+                print("base:", self.base,"seqAck", seqAck)
+                while(self.base < seqAck):
+                    del self.sndpkt[self.base]  # delete ACKed packet
+                    self.base += 1  # increment base for each time it is acked; Sliding Window
+
+                print("Recievethread base:",self.base)
+                print("Recievethread nextSeqNum:",self.nextSeqNum)
+        transDone = False   # Reset for next transfer
+    # ----------------------------------- R E C I E V E   T H R E A D -----------------------------------
+    def PackingThread(self, srcFile):
+        i = 1
+
         # Procedure to automatically close window if invalid file is given
         try:
             fileRead = open(srcFile, "rb")
-
         except FileNotFoundError:
             print(srcFile, "not found")
             self.Quit()
@@ -181,78 +272,17 @@ class App(Frame):
             self.Quit()
             raise
 
-        self.maxBytes = fileRead.seek(0,FILE_ENDG)    # Get total # of bytes in file and set as roof for progress bar
-        self.Init_PBar()
-        fileRead.seek(0, FILE_STRT)                     # Reset file position
+        self.maxBytes = fileRead.seek(0, FILE_ENDG)  # Get total # of bytes in file and set as roof for progress bar
+        fileRead.seek(0, FILE_STRT)  # Reset file position
 
-        clientSocket = socket(AF_INET, SOCK_DGRAM)
-        clientSocket.bind(('', ClientPort))
+        packdat = fileRead.read(PacketSize)  # packet creation
 
-        self.timer          = [clock(), Timer(self.estimatedRTT + (4) * (self.devRTT), self.Timeout, args=[ clientSocket, ServerPort, int(self.dataCor.get()), int(self.dataLoss.get())])]
-
-
-        packdat = fileRead.read(PacketSize) #packet creation
-        delayValue = clock() #start timer for overall transaction
-
-        while((packdat != b'')):
-            #self.UpdateFSM(self.seqNum *2 + 1, True)    # Update FSM diagram to "Wait ACK seqNum"
-
-            if (self.nextSeqNum < self.base+WindowSize):
-                self.sndpkt[self.nextSeqNum] = PackageHeader(packdat, self.nextSeqNum)
-                udt_send(self.sndpkt[self.nextSeqNum], clientSocket, ServerPort,
-                     corChance = int(self.dataCor.get()),
-                     lossChance = int(self.dataLoss.get())
-                     )
-                print(self.nextSeqNum)
-                if (self.base == self.nextSeqNum):
-                    self.StartTimeout(clientSocket, ServerPort)
-                self.nextSeqNum += 1
-
-            #print(sndpkt)
-
-            rcvpkt = rdt_rcv(clientSocket)
-
-            rcvpkt = CorruptCheck(rcvpkt, int(self.ackCor.get()))
-            ackLoss = LossCheck(int(self.ackLoss.get()))    # Check to see if ack was "lost"
-
-            #while (ackLoss == True or CheckChecksum(rcvpkt) == False or IsAck(rcvpkt, self.seqNum) == False): # if corrupt or wrong sn wait
-            #    rcvpkt = rdt_rcv(clientSocket)
-            #    seed()
-            #    rcvpkt = CorruptCheck(rcvpkt, int(self.ackCor.get()))
-            #    ackLoss = LossCheck(int(self.ackLoss.get()))    # Check to see if ack was "lost"
-
-            if (ackLoss == False and CheckChecksum(rcvpkt) == True):
-                seqNum = rcvpkt[2]
-                self.base = seqNum + 1
-                print (self.base)
-                print(self.nextSeqNum)
-                if (self.base == self.nextSeqNum):
-                    self.EndTimeout()
-                else:
-                    print ("why am i here")
-                    self.EndTimeout()
-                    self.StartTimeout(clientSocket, ServerPort)
-
-
-            #self.UpdateFSM(self.seqNum, False)
-            #self.UpdateFSM((self.seqNum + 2) % 3, True) # Update FSM diagram to "Wait for seqNum Above"
-
-            #self.seqNum = (self.seqNum + 1) % 2   # seqNum increments, but can only be 0 or 1
-
-            packdat = fileRead.read(PacketSize)
-
-            self.percentBytes = 100*(fileRead.seek(0, FILE_CURR)/self.maxBytes) - 1 # Update current place in file on progress bar
-            self.Update_PBar()
-
-        lastpkt = PackageHeader(packdat, self.nextSeqNum) # Send a final message to the server to signify end
-        udt_send(lastpkt, clientSocket, ServerPort, corChance = 0)
-
-        delayValue = clock() - delayValue   # Calculate total time taken to transfer and display it
-        self.delayTime.set("Time: " + str(format(delayValue, '.6g')) + " seconds")
-
-        print("Done")
-        sleep(.1)   # Wait to allow server to close first
-        clientSocket.close()
+        while ((packdat != b'')):
+            self.sndpkt[i] = PackageHeader(packdat, i)
+            packdat = fileRead.read(PacketSize)  # packet creation
+            i += 1
+        self.sndpkt[i] = PackageHeader(packdat, i)
+        self.finalPacket = i
         fileRead.close()
 
     # -------------------------------- T I M E O U T   F U N C T I O N S --------------------------------
@@ -260,37 +290,33 @@ class App(Frame):
     # Function to be pointed to be Timer() thread creation. Will activate after RTT unless cancelled by being acked.
     #If not cancelled before RTT, will resend the packet, create a new thread, and update the dictionary of thread
     #IDs with this new thread.
-    def StartTimeout(self, clientSocket, ServerPort):
-        print("starting timer")
-        self.threadMutex.acquire()  # Lock to block other threads
-        print("starting timer 2")
-        self.timer[1] = Timer( self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
-                args=[clientSocket, ServerPort, int(self.dataCor.get()), int(self.dataLoss.get())]) # arguments for Timeout()
+    def StartTimeout(self, clientSocket, ServerPort, dataCor, dataLoss):
 
-        print("starting timer 3")
+        self.threadMutex.acquire()  # Lock to block other threads
+
+        self.timer[1] = Timer( self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
+                               args=[clientSocket, ServerPort, dataCor, dataLoss
+                                     ]
+                               ) # arguments for Timeout()
         self.timer[1].start()  # Initiate the new thread
 
         self.threadMutex.release()  # Release to allow other threads to modify
-        print("starting timer 4")
 
     def Timeout(self, clientSocket, ServerPort, corChance, lossChance):
-        self.threadMutex.acquire()  # Lock to block other threads
-        self.concurrentThreads += 1
-        self.timer[1] = Timer( self.estimatedRTT + (4) * (self.devRTT), self.Timeout, #time calc
-                args=[clientSocket, ServerPort, corChance, lossChance])  # arguments for Timeout()
-        self.timer[1].start()
+        print("Timing Out")
 
+        self.concurrentThreads += 1
         i = self.base
         while i < self.nextSeqNum-1:
             tempsend = self.sndpkt[i]
             udt_send(tempsend, clientSocket, ServerPort,
-                     corChance=int(self.dataCor.get()),
-                     lossChance=int(self.dataLoss.get())
+                     corChance,
+                     lossChance
                      )
             i+=1
-
-        self.threadMutex.release()  # Release to allow other threads to modify
         self.concurrentThreads -= 1 # Deincrement current threads as exit
+
+        self.StartTimeout(clientSocket, ServerPort, corChance, lossChance)
         return  # exits thread
 
     def EndTimeout(self):
