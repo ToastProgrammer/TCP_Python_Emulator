@@ -249,6 +249,7 @@ class App(Frame):
             if (ackLoss == False and CheckChecksum(rcvpkt) == True):
                 oldBase = self.base
                 self.base = GetSequenceNum(rcvpkt) + 1
+                print("New Base =", self.base)
                 if self.base == self.nextSeqNum:
                     self.EndTimeout()
                     while(oldBase < self.base):
@@ -297,21 +298,23 @@ class App(Frame):
 
         self.threadMutex.acquire()  # Lock to block other threads
 
-        self.timer[1] = Timer( self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
+        self.timer[0] = clock()
+        localTimer = Timer( self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
                                args=[clientSocket, ServerPort, dataCor, dataLoss
                                      ]
                                ) # arguments for Timeout()
+        self.timer[1] = localTimer
         self.timer[1].start()  # Initiate the new thread
 
         self.threadMutex.release()  # Release to allow other threads to modify
-        
+
 
     def Timeout(self, clientSocket, ServerPort, corChance, lossChance):
-        print("Timing Out")
 
         self.concurrentThreads += 1
         i = self.base
         while i < self.nextSeqNum-1:
+            #print("Timeout Packet sent:", i)
             tempsend = self.sndpkt[i]
             udt_send(tempsend, clientSocket, ServerPort,
                      corChance,
