@@ -2,6 +2,7 @@ from socket import *
 from Constants import *
 from random import *
 
+
 # Random bit errors
 corruptDictionary = {0 : b'\x01', 1 : b'\x02', 2 : b'\x04', 3 : b'\x08',
                      4 : b'\x10', 5 : b'\x20', 6 : b'\x40', 7 : b'\x80'}

@@ -5,6 +5,7 @@ from DataFunctions import CorruptCheck, LossCheck
 import random
 
 
+
 ##-----------------Socket Functions-------------------##
 #------------------------------------------------------#
 #def Client_Wait(ServerName, ServerPort, seqNum, prevPacket):

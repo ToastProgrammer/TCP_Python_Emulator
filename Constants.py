@@ -3,6 +3,7 @@ PacketSize = 1024
 # Message to signify end of file
 TerminateCharacter = b''
 
+
 ACK = bytes(b'\xFA')
 
 ServerName = 'localhost'
