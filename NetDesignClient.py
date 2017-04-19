@@ -48,6 +48,8 @@ class App(Frame):
 
         self.currentPackets = {}
         self.threadMutex    = RLock()  # mutex for pkt dict control
+        self.baseMutex      = RLock()
+        self.pktMutex       = RLock()
         self.estimatedRTT   = DefaultRTT    # Initial EstimatedRTT
         self.devRTT         = DefaultDev    # Initial EstimatedRTTDeviation
         self.nextSeqNum         = 1             # Initial Sequence number
@@ -205,6 +207,7 @@ class App(Frame):
 
         # While finalPacket isn't yet declared or reached
         while((self.finalPacket == None) or (self.finalPacket != self.nextSeqNum - 1)):
+            self.baseMutex.acquire()
             if (self.nextSeqNum < self.base+WindowSize and len(self.sndpkt) > 0): #If next sequence number in window
                                                                                   #Checks if any pkts ready
                 udt_send(packet = self.sndpkt[self.nextSeqNum], socket = self.clientSocket, port = ServerPort,
@@ -219,6 +222,8 @@ class App(Frame):
 
                 self.percentBytes = 100*((self.base * PacketSize)/self.maxBytes) - 1 # Update current place in file on progress bar
                 self.Update_PBar()
+            self.baseMutex.release()
+
 
         transDone = True   # Signal recieve thread of completion
 
@@ -247,18 +252,19 @@ class App(Frame):
             rcvpkt = CorruptCheck(rcvpkt, ackCor)
             ackLoss = LossCheck(ackLoss)  # Check to see if ack was "lost"
             if (ackLoss == False and CheckChecksum(rcvpkt) == True):
+                self.baseMutex.acquire()
                 oldBase = self.base
                 self.base = GetSequenceNum(rcvpkt) + 1
                 print("New Base =", self.base)
+                self.EndTimeout()
                 if self.base == self.nextSeqNum:
-                    self.EndTimeout()
                     while(oldBase < self.base):
                         del self.sndpkt[oldBase]  # delete ACKed packet
                         oldBase += 1  # increment base for each time it is acked; Sliding Window
                 else:
                     self.StartTimeout(clientSocket, ServerPort, dataCor, dataLoss)
+                self.baseMutex.release()
 
-                print("Recievethread base:",self.base)
                 print("Recievethread nextSeqNum:",self.nextSeqNum)
         transDone = False   # Reset for next transfer
     # ----------------------------------- R E C I E V E   T H R E A D -----------------------------------
@@ -281,12 +287,14 @@ class App(Frame):
 
         packdat = fileRead.read(PacketSize)  # packet creation
 
+        self.pktMutex.acquire()
         while ((packdat != b'')):
             self.sndpkt[i] = PackageHeader(packdat, i)
             packdat = fileRead.read(PacketSize)  # packet creation
             i += 1
         self.sndpkt[i] = PackageHeader(packdat, i)
         self.finalPacket = i
+        self.pktMutex.release()
         fileRead.close()
 
     # -------------------------------- T I M E O U T   F U N C T I O N S --------------------------------
@@ -303,6 +311,7 @@ class App(Frame):
                                args=[clientSocket, ServerPort, dataCor, dataLoss
                                      ]
                                ) # arguments for Timeout()
+        print("Timer val = ", self.estimatedRTT + 4*self.devRTT)
         self.timer[1] = localTimer
         self.timer[1].start()  # Initiate the new thread
 
@@ -322,8 +331,6 @@ class App(Frame):
                      )
             i+=1
         self.concurrentThreads -= 1 # Deincrement current threads as exit
-
-        self.StartTimeout(clientSocket, ServerPort, corChance, lossChance)
         return  # exits thread
 
     def EndTimeout(self):

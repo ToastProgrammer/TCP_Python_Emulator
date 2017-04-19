@@ -57,10 +57,11 @@ def ServerMain():
 
             if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, expectedSeqNum):  # If Checksum & seq num correct
                 expectedSeqNum += 1
-                print(expectedSeqNum)
+
                 data = UnpackageHeader(rcvpkt)
                 moreData, writeIndex = deliver_data(data, writeIndex)  # Write correct data to file
                 sndpkt = PackageHeader(ACK, expectedSeqNum)  # Package CORRECT ack
+                print(sndpkt[2])
                 udt_send(sndpkt, serverSocket, ClientPort)
                 #onceThrough = True
             else:
