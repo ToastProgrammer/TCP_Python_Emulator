@@ -58,21 +58,6 @@ class App(Frame):
         self.concurrentThreads  = 0          # Number of threads - Main thread running | Debug
         self.sndpkt             = {}
 
-        # ----------- F S M   D i s p l a y s -----------
-        self.sendFSMLabel = Label(root, text='Sender FSM')
-        self.sendFSMLabel.grid(row=5, column=0, padx=40,  pady=1, sticky=W+S)
-
-        self.sendFSM = Label()
-        self.sendFSM.grid(row=6, column=0, pady=1, sticky=E+S)
-        self.UpdateFSM(0, True) # Update the image of the Sender FSM
-
-        self.recvFSMLabel = Label(root, text='Reciever FSM')
-        self.recvFSMLabel.grid(row=5, column=1, padx=40, pady=1, sticky=E+S, columnspan = 2)
-
-        self.recvFSM = Label()
-        self.recvFSM.grid(row=6, column=1, padx=3, pady=1, sticky=E+S, columnspan = 2)
-        self.UpdateFSM(0, False)    # Update the image of the Reciever FSM
-
         # ----------- T i m e   D i s p l a y -----------
 
         self.timeLabel = Label(root, text='Time taken:')
@@ -94,7 +79,7 @@ class App(Frame):
         self.dataCorPercent.grid(row=1, column=2, padx=3, pady=2, sticky=W+S, columnspan=1)
         self.dataCor = StringVar()
         # Default contents of variable will be 0
-        self.dataCor.set('0')
+        self.dataCor.set('10')
         # tell the entry widget to watch this variable
         self.dataCorPercent["textvariable"] = self.dataCor
 
@@ -108,7 +93,7 @@ class App(Frame):
         self.ackCorPercent.grid(row=2, column=2, padx=3, pady=2, sticky=W+S, columnspan=1)
         self.ackCor = StringVar()
         # Default contents of variable will be 0
-        self.ackCor.set('0')
+        self.ackCor.set('10')
         # tell the entry widget to watch this variable
         self.ackCorPercent["textvariable"] = self.ackCor
 
@@ -122,7 +107,7 @@ class App(Frame):
         self.dataLossPercent.grid(row=3, column=2, padx=3, pady=2, sticky=W+S, columnspan=1)
         self.dataLoss = StringVar()
         # Default contents of variable will be 0
-        self.dataLoss.set('0')
+        self.dataLoss.set('10')
         # tell the entry widget to watch this variable
         self.dataLossPercent["textvariable"] = self.dataLoss
 
@@ -136,7 +121,7 @@ class App(Frame):
         self.ackLossPercent.grid(row=4, column=2, padx=3, pady=2, sticky=W+S, columnspan=1)
         self.ackLoss = StringVar()
         # Default contents of variable will be 0
-        self.ackLoss.set('0')
+        self.ackLoss.set('10')
         # tell the entry widget to watch this variable
         self.ackLossPercent["textvariable"] = self.ackLoss
 
@@ -208,7 +193,7 @@ class App(Frame):
 
         # While finalPacket isn't yet declared or reached
         self.pktMutex.acquire()
-        while((self.finalPacket == None) or (self.finalPacket != self.nextSeqNum - 1)):
+        while((self.finalPacket == None) or (self.finalPacket != self.nextSeqNum-1)):
             if (started == False):
                 self.pktMutex.release()
             started = True
@@ -229,6 +214,12 @@ class App(Frame):
                 self.Update_PBar()
             self.baseMutex.release()
 
+        while(self.base != self.finalPacket+1):
+            print('', end='')
+        print(self.finalPacket)
+        lastPkt = PackageHeader(b'',self.nextSeqNum)
+        udt_send(lastPkt, self.clientSocket, ServerPort)
+
 
         transDone = True   # Signal recieve thread of completion
 
@@ -237,14 +228,15 @@ class App(Frame):
 
         self.maxBytes       = 1000000 #reset some default values
         self.finalPacket    = None
-        self.base           = 1
-        self.nextSeqNum     = 1
+
 
         delayValue = clock() - delayValue   # Calculate total time taken to transfer and display it
         self.delayTime.set("Time: " + str(format(delayValue, '.6g')) + " seconds")
 
         print("Done")
         sleep(.1)   # Wait to allow server to close first
+        self.base = 1
+        self.nextSeqNum = 1
         self.clientSocket.close()
 
     # ----------------------------------- R E C I E V E   T H R E A D -----------------------------------
@@ -297,7 +289,7 @@ class App(Frame):
             self.sndpkt[i] = PackageHeader(packdat, i)
             packdat = fileRead.read(PacketSize)  # packet creation
             i += 1
-        self.sndpkt[i] = PackageHeader(packdat, i)
+        self.sndpkt[i] = PackageHeader(b'', i)
         self.finalPacket = i
         self.pktMutex.release()
         fileRead.close()
@@ -330,13 +322,16 @@ class App(Frame):
         self.StartTimeout(clientSocket, ServerPort, corChance, lossChance)
         print("Timed out")
         i = self.base - 1
-        while i < self.nextSeqNum-1:
+        while i < self.nextSeqNum:
             #print("Timeout Packet sent:", i)
-            tempsend = self.sndpkt[i]
-            udt_send(tempsend, clientSocket, ServerPort,
+            try:
+                tempsend = self.sndpkt[i]
+                udt_send(tempsend, clientSocket, ServerPort,
                      corChance,
                      lossChance
                      )
+            except:
+                pass
             i+=1
         self.baseMutex.release()
         return  # exits thread
@@ -363,21 +358,6 @@ class App(Frame):
     def Update_PBar(self):
         self.pBar["value"] = (self.percentBytes)
         self.update_idletasks()
-
-    # Update either FSM graphic
-    def UpdateFSM(self, state, isSender = True):
-        if isSender:
-            self.fileName = SendFSMDict[state]
-        else:
-            self.fileName = RecieveFSMDict[state]
-        photo = PhotoImage(file=self.fileName)
-        if isSender:
-            self.sendFSM.configure(image=photo)
-            self.sendFSM.image = photo
-        else:
-            self.recvFSM.configure(image=photo)
-            self.recvFSM.image = photo
-        self.update_idletasks() # Actually tell tkinter to update itself
 
 
     ######## Function:

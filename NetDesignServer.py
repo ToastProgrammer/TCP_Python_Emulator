@@ -51,17 +51,24 @@ def ServerMain():
         #onceThrough = False
         writeIndex = 0
         expectedSeqNum = 1
+        test = 1
         sndpkt = PackageHeader(ACK,expectedSeqNum)
         while(moreData):
             rcvpkt = rdt_rcv(serverSocket)
-
+            print("Test", test)
+            test += 1
             if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, expectedSeqNum):  # If Checksum & seq num correct
                 expectedSeqNum += 1
-
                 data = UnpackageHeader(rcvpkt)
                 moreData, writeIndex = deliver_data(data, writeIndex)  # Write correct data to file
                 sndpkt = PackageHeader(ACK, expectedSeqNum)  # Package CORRECT ack
                 print(sndpkt[2])
+
+                if (sndpkt[2] == 164):
+                    print(UnpackageHeader(rcvpkt))
+                if(sndpkt[2] == 165):
+                    print(UnpackageHeader(rcvpkt))
+
                 udt_send(sndpkt, serverSocket, ClientPort)
                 #onceThrough = True
             else:
