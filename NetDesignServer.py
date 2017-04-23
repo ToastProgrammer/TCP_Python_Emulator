@@ -55,8 +55,8 @@ def ServerMain():
         sndpkt = PackageHeader(ACK,expectedSeqNum)
         while(moreData):
             rcvpkt = rdt_rcv(serverSocket)
-            print("Test", test)
-            test += 1
+            #print("Test", test)
+            #test += 1
             if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, expectedSeqNum):  # If Checksum & seq num correct
                 expectedSeqNum += 1
                 data = UnpackageHeader(rcvpkt)
@@ -72,6 +72,7 @@ def ServerMain():
                 udt_send(sndpkt, serverSocket, ClientPort)
                 #onceThrough = True
             else:
+                print("resend")
                 udt_send(sndpkt, serverSocket, ClientPort)
 
 

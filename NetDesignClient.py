@@ -26,8 +26,11 @@ FILE_CURR   = 1
 FILE_STRT   = 0
 
 # Indexe numbers in thread dictionary tuple
-IndexTimer  = 1
-IndexStartT = 0
+IndexBase   = 0
+IndexTimer  = 2
+IndexStartT = 1
+
+IndexOfLastItem = -1
 
 SendFSMDict = {0: SendFSM0, 1:SendFSM1, 2:SendFSM2, 3:SendFSM3}
 RecieveFSMDict = {0:RecvFSM0, 1:RecvFSM1}
@@ -165,13 +168,18 @@ class App(Frame):
 
         self.clientSocket = socket(AF_INET, SOCK_DGRAM)
         self.clientSocket.bind(('', ClientPort))
-        self.timer          = [clock(),
-                               Timer(self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
-                                     args=[ self.clientSocket, ServerPort,
-                                            int(self.dataCor.get()), int(self.dataLoss.get())
+        self.timer = [
+            [self.base,         # IndexBase
+             clock(),           # IndexStartT
+             Timer(self.estimatedRTT + (4) * (self.devRTT), self.Timeout,   #IndexTimer
+                                     args=[ self.clientSocket,
+                                            ServerPort,
+                                            int(self.dataCor.get()),
+                                            int(self.dataLoss.get())
                                             ]
-                                     )
-                               ]
+                   )
+             ]
+        ]
         self.recieveThread  = Thread(None, self.RecieveThread, "Recieving Thread",
                                      args=[self.clientSocket, int(self.dataCor.get()), int(self.dataLoss.get()), int(self.ackCor.get()), int(self.ackLoss.get())
                                            ]
@@ -255,9 +263,10 @@ class App(Frame):
                 print("New Base =", self.base)
                 self.EndTimeout()
                 if self.base == self.nextSeqNum:
-                    while(oldBase < self.base):
+                    pass
+                    #while(oldBase < self.base):
                         #del self.sndpkt[oldBase]  # delete ACKed packet
-                        oldBase += 1  # increment base for each time it is acked; Sliding Window
+                        #oldBase += 1  # increment base for each time it is acked; Sliding Window
                 else:
                     self.StartTimeout(clientSocket, ServerPort, dataCor, dataLoss)
                 self.baseMutex.release()
@@ -299,18 +308,18 @@ class App(Frame):
     # Function to be pointed to be Timer() thread creation. Will activate after RTT unless cancelled by being acked.
     #If not cancelled before RTT, will resend the packet, create a new thread, and update the dictionary of thread
     #IDs with this new thread.
+
     def StartTimeout(self, clientSocket, ServerPort, dataCor, dataLoss):
 
         self.threadMutex.acquire()  # Lock to block other threads
 
-        self.timer[0] = clock()
         localTimer = Timer( self.estimatedRTT + (4) * (self.devRTT), self.Timeout,
                                args=[clientSocket, ServerPort, dataCor, dataLoss
                                      ]
                                ) # arguments for Timeout()
         print("Timer val = ", self.estimatedRTT + 4*self.devRTT)
-        self.timer[1] = localTimer
-        self.timer[1].start()  # Initiate the new thread
+        self.timer.append([self.base, clock(), localTimer])
+        self.timer[IndexOfLastItem][IndexTimer].start()  # Initiate the most recent timer created
 
         self.threadMutex.release()  # Release to allow other threads to modify
 
@@ -322,7 +331,7 @@ class App(Frame):
         self.StartTimeout(clientSocket, ServerPort, corChance, lossChance)
         print("Timed out")
         i = self.base - 1
-        while i < self.nextSeqNum:
+        while i < self.nextSeqNum + 1:
             #print("Timeout Packet sent:", i)
             try:
                 tempsend = self.sndpkt[i]
@@ -333,17 +342,25 @@ class App(Frame):
             except:
                 pass
             i+=1
+        print("Timeout sent from:", self.base, "to", self.nextSeqNum)
         self.baseMutex.release()
         return  # exits thread
 
     def EndTimeout(self):
+        sampleTimeSet = False
+
         curTime = clock()   # Immediately take clock first to get better RTT estimation
         self.threadMutex.acquire()  # Lock to block other threads
-        sampleRTT = curTime - self.timer[0]
-        self.timer[1].cancel()  # Stop the timeout timer
-        self.estimatedRTT = (1 - Alpha)*self.estimatedRTT + (Alpha * sampleRTT)
-        self.devRTT = (1 - Beta)*self.devRTT + Beta*abs(sampleRTT - self.estimatedRTT)
-        # Remove dictionary key for seqNum, or do nothing if key DNE
+
+        for timeout in self.timer:
+            if timeout[IndexBase] < self.base:  # If any timer has a base less than the current
+                timeout[IndexTimer].cancel()   # End it
+                if sampleTimeSet == False and timeout[IndexTimer].is_alive() == True:  # Get first still running thread
+                    sampleRTT = curTime - timeout[IndexStartT]  # Get sampleRTT from
+                    sampleTimeSet = True
+        if sampleTimeSet:
+            self.estimatedRTT = (1 - Alpha)*self.estimatedRTT + (Alpha * sampleRTT)
+            self.devRTT = (1 - Beta)*self.devRTT + Beta*abs(sampleRTT - self.estimatedRTT)
 
         self.threadMutex.release()  # Release to allow other threads to modify
 
