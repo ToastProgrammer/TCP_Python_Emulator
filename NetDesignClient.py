@@ -306,6 +306,8 @@ def SendThread():
     while((finalPacket == None) or (finalPacket != nextSeqNum-1)):
         baseMutex.acquire()
         if ((nextSeqNum < base+WindowSize and len(sndpkt) > nextSeqNum - 1) or (senderLooped and CheckWithinLoop(WindowSize, base, nextSeqNum))): #If next sequence number in window
+            if (senderLooped and CheckWithinLoop(WindowSize, base, nextSeqNum)):
+                print("fixed this malarkey")
             baseMutex.release()
             if(senderLooped):
                 senderLooped = False
@@ -377,8 +379,8 @@ def RecieveThread():
             if CheckHigherSeq(rcvpkt,base):
                 print("Updating Higher")
                 update = True
-            #elif(looped and CheckWithinLoop(WindowSize, base, GetSequenceNum(rcvpkt) - 1)):
-            elif (looped):
+            elif(looped and CheckWithinLoop(WindowSize, base, GetSequenceNum(rcvpkt) - 1)):
+            #elif (looped):
                 print("Updating Lower")
                 update = True
                 looped = False # tell the packer its okay to loop again
@@ -393,7 +395,7 @@ def RecieveThread():
             numPacketsAcked = GetNumPacketsBetween(oldBase, base, MaxSequenceNum)
             i = 0
             print("NUMBER PACKETS ACKED", numPacketsAcked)
-            while(i < numPacketsAcked):
+            while(i < numPacketsAcked+1):
                 writePcktSemaphore.release()
                 i += 1
             baseMutex.release()
@@ -453,10 +455,10 @@ def PackingThread():
     while ((packdat != b'')):
         if localLooped == False:
             sndpkt.append(PackageHeader(packdat, i))
-            pktsReadySemaphore.release()
         else:
             sndpkt[i] = PackageHeader(packdat, i)
 
+        pktsReadySemaphore.release()
         print("Before writePckt")
         writePcktSemaphore.acquire()  # ensure unacked packets not rewritten
         print("After writePckt")
@@ -475,6 +477,7 @@ def PackingThread():
             localLooped = True
             looped = True
             senderLooped = True
+            print(looped)
 
     if localLooped == False:
         sndpkt.append(PackageHeader(b'', i, fin=True))    # final packet

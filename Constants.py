@@ -38,7 +38,7 @@ SendFSM3 = "SendFSMwa1.gif"
 RecvFSM0 = "RecvFSM0.gif"
 RecvFSM1 = "RecvFSM1.gif"
 
-blowShitUp = False
+blowShitUp = True
 
 if(blowShitUp):
     dataCorChance   = 20
