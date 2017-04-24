@@ -76,15 +76,21 @@ def CheckHigherSeq(seq, seqNum):
 
 ##-----------------Syn/Fin Flags------------------##
 def SetSynFin(data, syn, fin):
-    if syn:
-        data = bytes([1]) + data
-    else:
-        data = bytes([0]) + data
     if fin:
         data = bytes([1]) + data
     else:
         data = bytes([0]) + data
+    if syn:
+        data = bytes([1]) + data
+    else:
+        data = bytes([0]) + data
     return data
+
+def CheckFin(data):
+    if (data[IndexFin] == 1):
+        return True
+    else:
+        return False
 
 ##---------------Packet Functions-----------------##
 # Add checksum, seq#, and possible corruption

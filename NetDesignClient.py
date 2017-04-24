@@ -26,6 +26,7 @@ nextSeqNum          = 1             # Initial Sequence number
 base                = 1
 finalPacket         = None
 
+connBreakThread     = None
 timer               = []
 devRTT              = DefaultDev    # Initial EstimatedRTTDeviation
 estimatedRTT        = DefaultRTT    # Initial EstimatedRTT
@@ -225,6 +226,8 @@ def send_file():
 
     global clientSocket
 
+    global connBreakThread
+
     global transDone
 
     global base
@@ -233,10 +236,14 @@ def send_file():
 
     transDone = False  # variable to notify
 
+    if connBreakThread is not None:     # If previous connection run
+        if connBreakThread.is_alive():  # If previous teardown still in effect, cancel it
+            connBreakThread.cancel()
+
     clientSocket = socket(AF_INET, SOCK_DGRAM)
     clientSocket.bind(('', ClientPort))
 
-    sendingThread      = Thread(None, SendThread, "Sending Thread")
+    sendingThread   = Thread(None, SendThread, "Sending Thread")
 
     recieveThread   = Thread(None, RecieveThread, "Recieving Thread")  # Initialize Recieve Thread
 
@@ -256,11 +263,12 @@ def send_file():
     recieveThread.join()  # wait for recieve thread to conclude
     print("Recieving Thread Joined*************************")
     sendingThread.join()
-    print("Sending Thread Joined**************************")
+    print("Sending Thread Joined*************************")
+
+    StartConnTeardown()
 
     # Reset some values to default
     finalPacket = None
-    clientSocket.close()
     base = 0
     nextSeqNum = 0
 
@@ -301,23 +309,16 @@ def SendThread():
             nextSeqNum += 1
             print("Senders nextSequNum", nextSeqNum)
         baseMutex.release()
+
     while(base != finalPacket+1):
         pass
-    print("Escaped")
-
-    print(finalPacket)
-    lastPkt = PackageHeader(b'', nextSeqNum)
-    udt_send(lastPkt, clientSocket, ServerPort)
-
     transDone = True   # Signal recieve thread of completion
 
     delayValue = clock() - delayValue   # Calculate total time taken to transfer and display it
 
     EndTimeout(False)
 
-    print("Done")
     sleep(.1)   # Wait to allow server to close first
-
 
 
 #-------------------------- R e c i e v e   T h r e a d ------------------------
@@ -329,6 +330,8 @@ def RecieveThread():
 
         global pktMutex
         global threadMutex
+
+        global connBreakThread
 
         global finalPacket
         global base
@@ -411,9 +414,9 @@ def PackingThread():
             looped = True
 
     if looped == False:
-        sndpkt.append(PackageHeader(b'', i))    # final packet
+        sndpkt.append(PackageHeader(b'', i, fin=True))    # final packet
     else:
-        sndpkt[i] = PackageHeader(b'', i)
+        sndpkt[i] = PackageHeader(b'', i, fin=True)
 
     pktsReadySemaphore.release()    # Post the semaphore for the final packet
 
@@ -463,6 +466,7 @@ def Timeout():
 
     global base
     global nextSeqNum
+    global finalPacket
 
     global sndpkt
     global clientSocket
@@ -480,6 +484,8 @@ def Timeout():
                  dataCorChance,
                  dataLossChance
                  )
+            if i == finalPacket:
+                print("SENDING FINAL PACKET")
         except:
             pass
         i+=1
@@ -509,9 +515,59 @@ def EndTimeout(wasAcked):
 
     threadMutex.release()  # Release to allow other threads to modify
 
+def StartConnTeardown():
+
+    global base
+    global clientSocket
+
+    # Start Connection Breakdown
+    connBreakPkt = PackageHeader(ACK, base, fin=True)  # Server FIN ACK packet
+    connBreakThread = Thread(None, ConnectionBreakdown, "Connection Breakdown Thread", args=[connBreakPkt])
+    finRecieved = False
+    print("Before breakdown loop")
+    while (finRecieved == False):
+
+        rcvpkt = rdt_rcv(clientSocket)
+        print("Waited")
+        print(rcvpkt[0:6])
+        rcvpkt = CorruptCheck(rcvpkt, ackCorChance)
+        ackLoss = LossCheck(ackLossChance)
+
+        if (CheckFin(rcvpkt) and ackLoss == False and CheckChecksum(rcvpkt)):
+            udt_send(connBreakPkt, clientSocket, ServerPort, corChance=dataCorChance, lossChance=dataLossChance)
+            connBreakThread.start()
+            finRecieved = True
+
+#-------------------- C o n n e c t i o n   B r e a k d o w n ------------------
+def ConnectionBreakdown(connBreakPkt):
+
+    global clientSocket
+
+    clientSocket.settimeout(1.0)
+    startT = clock()
+    while(True):
+        try:
+            rcvpkt = rdt_rcv(clientSocket)  # socket timeout raises exception
+            rcvpkt = CorruptCheck(rcvpkt, ackCorChance)
+            ackLoss = LossCheck(ackLossChance)
+
+            if (CheckFin(rcvpkt) and ackLoss == False and CheckChecksum(rcvpkt)):
+
+                udt_send(connBreakPkt, clientSocket, ServerPort, corChance=dataCorChance, lossChance=dataLossChance)
+
+            newTimeout = 30.0 - (clock() - startT)  # Get amount of time since "30 seconds" started
+            if(newTimeout < 0): # If time went over while responding
+                break
+            clientSocket.settimeout(newTimeout) # Total timeout must be around  accumulative 30 seconds
+        except:
+            pass
 
 
-#root = Tk()
+
+
+
+
+        #root = Tk()
 #app = App(master=root)
 #root.geometry("365x320+25+25")
 ## Run the tkinter GUI app
