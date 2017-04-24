@@ -19,8 +19,6 @@ from threading import *
 global root
 global fileRead
 
-srcFile = 's.bmp'
-
 nextSeqNum          = 1             # Initial Sequence number
 base                = 1
 finalPacket         = None
@@ -304,9 +302,9 @@ def SendThread():
     while((finalPacket == None) or (finalPacket != nextSeqNum-1)):
         baseMutex.acquire()
         if (nextSeqNum < base+WindowSize and len(sndpkt) > nextSeqNum - 1): #If next sequence number in window
-            print("Gettting pktsReady")
+            print("Sender Grabbing pktsRdy")
             pktsReadySemaphore.acquire()
-            print("Got pktsReady")
+            print("Sender Grabbed pktsRdy")
             udt_send(sndpkt[nextSeqNum], clientSocket, ServerPort, dataCorChance, dataLossChance)
 
             if (base == nextSeqNum):
@@ -316,7 +314,7 @@ def SendThread():
                 nextSeqNum = 1
             print("Senders nextSequNum", nextSeqNum)
         baseMutex.release()
-
+    print("Escaped")
     while(base != finalPacket+1):
         pass
     transDone = True   # Signal recieve thread of completion
@@ -520,7 +518,8 @@ def Timeout():
     if aquired:
         baseMutex.release()
     j = GetNumPacketsBetween(base, nextSeqNum, MaxSequenceNum)
-    while i < j+1:
+    print("Number between:", j)
+    while i < j:
         #print("Timeout Packet sent:", i)
         try:
             tempsend = sndpkt[index]

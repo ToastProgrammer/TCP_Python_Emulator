@@ -76,6 +76,7 @@ def CheckHigherSeq(seq, seqNum):
 
 # Check if looped sequence number is within window size to be acked
 def CheckWithinLoop(windowSize, curBase, recAck):
+    print()
     if ((MaxSequenceNum - curBase) + recAck <= windowSize):
         return True
     else:
@@ -85,7 +86,7 @@ def GetNumPacketsBetween(oldBase, base, maxSeqNum):
     if base >= oldBase:
         retVal = base - oldBase
     else:
-        retVal = (maxSeqNum - oldBase) + base
+        retVal = (maxSeqNum - oldBase) + base + 1
     print("Packets between", oldBase, "and", base, "is", retVal)
     return retVal
 
