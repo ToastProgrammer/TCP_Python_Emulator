@@ -34,7 +34,7 @@ def MakeChecksum(bString):
 
 # Check if sequence number + data matches checksum
 def CheckChecksum(bString):
-    checkString = MakeChecksum(bString[2:])
+    checkString = MakeChecksum(bString[IndexSeqNum:])
     checkArray = bytearray(checkString)
     recievedArray = bytearray(bString)
     if (checkArray[1] == recievedArray[1]) and (checkArray[0] == recievedArray[0]):
@@ -48,7 +48,7 @@ def InsertChecksum(data, checksum):
 
 # Remove checksum from seq# + data
 def RemoveChecksum(bString):
-    return bString[2:]
+    return bString[IndexSeqNum:]
 
 
 ##---------------Sequence Number-----------------##
@@ -58,10 +58,10 @@ def AddSequenceNum(seq, seqNum):
 
 # Remove seq# from data
 def RemoveSequenceNum(seq):
-    return seq[3:]
+    return seq[IndexSeqNum+1:]
 
 def GetSequenceNum(seq):
-    return seq[2]
+    return seq[IndexSeqNum]
 
 # Check sequence number from recieved packet
 def CheckSequenceNum(seq, seqNum):
@@ -74,17 +74,29 @@ def CheckHigherSeq(seq, seqNum):
         return True
     return False
 
+##-----------------Syn/Fin Flags------------------##
+def SetSynFin(data, syn, fin):
+    if syn:
+        data = bytes([1]) + data
+    else:
+        data = bytes([0]) + data
+    if fin:
+        data = bytes([1]) + data
+    else:
+        data = bytes([0]) + data
+    return data
+
 ##---------------Packet Functions-----------------##
 # Add checksum, seq#, and possible corruption
-def PackageHeader(data, seq):
-
+def PackageHeader(data, seq, syn = False, fin = False):
+    data = SetSynFin(data, syn, fin)
     Segment = AddSequenceNum(data, seq)
     packet = InsertChecksum(Segment, MakeChecksum(Segment))
     return packet
 
 # Return data from packet
 def UnpackageHeader(segment):
-    return (segment[3:])
+    return (segment[IndexData:])
 
 # Check last byte of packet if it is ACK
 def IsAck(segment, seqNum):
@@ -110,4 +122,4 @@ def LossCheck(lossChance):
     if (randint(0, 100) < lossChance):
         return True     # If a hit, then the packet was lost
     else:
-        return False    # Otherwise the packet is se
+        return False    # Otherwise the packet is sent

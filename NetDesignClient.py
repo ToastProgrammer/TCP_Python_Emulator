@@ -58,6 +58,14 @@ SizeTimerStruct = 2
 SendFSMDict = {0: SendFSM0, 1:SendFSM1, 2:SendFSM2, 3:SendFSM3}
 RecieveFSMDict = {0:RecvFSM0, 1:RecvFSM1}
 
+#============================== F U N C T I O N S ==============================
+#====================================== = ======================================
+#---------------------------------------- --------------------------------------
+
+#======================== T h r e a d   F u n c t i o n s ======================
+
+#---------------------------- T k i n t e r   A p p ----------------------------
+
 class App(Frame):
     # Tkinter initializing
     def __init__(self, master=None):
@@ -67,6 +75,21 @@ class App(Frame):
         self.grid_columnconfigure(0, weight = 1)
         self.grid_columnconfigure(1, weight = 1)
         self.grid_columnconfigure(2, weight = 1)
+
+        # ----------- F S M   D i s p l a y s -----------
+        self.sendFSMLabel = Label(root, text='Sender FSM')
+        self.sendFSMLabel.grid(row=5, column=0, padx=40, pady=1, sticky=W + S)
+
+        self.sendFSM = Label()
+        self.sendFSM.grid(row=6, column=0, pady=1, sticky=E + S)
+        self.UpdateFSM(0, True)  # Update the image of the Sender FSM
+
+        self.recvFSMLabel = Label(root, text='Reciever FSM')
+        self.recvFSMLabel.grid(row=5, column=1, padx=40, pady=1, sticky=E + S, columnspan=2)
+
+        self.recvFSM = Label()
+        self.recvFSM.grid(row=6, column=1, padx=3, pady=1, sticky=E + S, columnspan=2)
+        self.UpdateFSM(0, False)  # Update the image of the Reciever FSM
 
         # ----------- T i m e   D i s p l a y -----------
 
@@ -162,7 +185,6 @@ class App(Frame):
         self.pBar.grid(row=0, column=2, padx = 3, pady = 2, sticky=E+W+N, columnspan=3)
 
         # -------------------------------- T K I N T E R   F U N C T I O N S --------------------------------
-
         # Initiate progress bar to 0%
         def Init_PBar(self):
             self.pBar["value"] = (0)
@@ -173,6 +195,21 @@ class App(Frame):
             self.pBar["value"] = (self.percentBytes)
             self.update_idletasks()
 
+        # Update either FSM graphic
+        def UpdateFSM(self, state, isSender=True):
+            if isSender:
+                self.fileName = SendFSMDict[state]
+            else:
+                self.fileName = RecieveFSMDict[state]
+            photo = PhotoImage(file=self.fileName)
+            if isSender:
+                self.sendFSM.configure(image=photo)
+                self.sendFSM.image = photo
+            else:
+                self.recvFSM.configure(image=photo)
+                self.recvFSM.image = photo
+            self.update_idletasks()  # Actually tell tkinter to update itself
+
         ######## Function:
         ######## Quit
         #### Purpose:
@@ -181,6 +218,8 @@ class App(Frame):
         ## None
         def Quit(self):
             root.destroy()
+
+#------------------------------ S e n d _ F i l e ------------------------------
 
 def send_file():
 
@@ -226,6 +265,8 @@ def send_file():
     nextSeqNum = 0
 
     print("Send another?")
+
+#---------------------------- S e n d   T h r e a d ----------------------------
 
 def SendThread():
     if True:
@@ -279,7 +320,8 @@ def SendThread():
 
 
 
-# ----------------------------------- R E C I E V E   T H R E A D -----------------------------------
+#-------------------------- R e c i e v e   T h r e a d ------------------------
+
 def RecieveThread():
     if True:
 
@@ -301,7 +343,7 @@ def RecieveThread():
         rcvpkt = rdt_rcv(clientSocket)
         rcvpkt = CorruptCheck(rcvpkt, ackCorChance)
         ackLoss = LossCheck(ackLossChance)  # Check to see if ack was "lost"
-        print("Reciever got", rcvpkt[2])
+        print("Reciever got", rcvpkt[IndexSeqNum])
         if (ackLoss == False and CheckChecksum(rcvpkt) == True and CheckHigherSeq(rcvpkt,base)):
             baseMutex.acquire()
             base = GetSequenceNum(rcvpkt)
@@ -315,7 +357,7 @@ def RecieveThread():
 
             #print("Recievethread nextSeqNum:",nextSeqNum)
     transDone = False   # Reset for next transfer
-# ----------------------------------- P A C K I N G  T H R E A D -----------------------------------
+#-------------------------- P a c k i n g   T h r e a d ------------------------
 def PackingThread():
 
     if True:
@@ -380,11 +422,11 @@ def PackingThread():
     pktMutex.release()
     fileRead.close()
 
-# -------------------------------- T I M E O U T   F U N C T I O N S --------------------------------
+#====================== T i m e o u t   F u n c t i o n s ======================
 
-# Function to be pointed to be Timer() thread creation. Will activate after RTT unless cancelled by being acked.
-#If not cancelled before RTT, will resend the packet, create a new thread, and update the dictionary of thread
-#IDs with this new thread.
+
+#---------------------------- S t a r t T i m e o u t --------------------------
+
 def StartTimeout(wasAcked):
 
     global timer
@@ -410,6 +452,8 @@ def StartTimeout(wasAcked):
     threadMutex.release()  # Release to allow other threads to modify
     timer[IndexTimer].start()  # Initiate the new thread
 
+
+#-------------------------------- T i m e o u t --------------------------------
 def Timeout():
 
     global baseMutex
@@ -431,7 +475,7 @@ def Timeout():
         #print("Timeout Packet sent:", i)
         try:
             tempsend = sndpkt[i]
-            print(i, tempsend[2])
+            print(i, tempsend[IndexSeqNum])
             udt_send(tempsend, clientSocket, ServerPort,
                  dataCorChance,
                  dataLossChance
@@ -444,6 +488,7 @@ def Timeout():
     StartTimeout(wasAcked = False)
     return  # exits thread
 
+#------------------------------ E n d T i m e o u t ----------------------------
 def EndTimeout(wasAcked):
 
     curTime = clock()  # Immediately take clock first to get better RTT estimation

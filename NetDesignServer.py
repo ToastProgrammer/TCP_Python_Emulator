@@ -13,12 +13,7 @@ from os import remove
 
 global writeIndex
 
-######## Function:
-######## deliver data
-#### Purpose:
-#### delivers the data from packet and appends to file
-## Paramters:
-## Data in
+#---------------------------- D e l i v e r   D a t a --------------------------
 def deliver_data(data, writeIndex):
     moreData = True
     fileWrite = open(dstFile, 'ab')
@@ -31,12 +26,7 @@ def deliver_data(data, writeIndex):
         moreData = False
     return moreData, writeIndex
 
-######## Function:
-######## ServerMain
-#### Purpose:
-#### contains the FSM for GBN file receive
-## Paramters:
-## None
+#---------------------------- S e r v e r   M a i n ----------------------------
 def ServerMain():
 
     serverSocket = socket(AF_INET, SOCK_DGRAM)
@@ -63,13 +53,14 @@ def ServerMain():
             if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, expectedSeqNum):  # If Checksum & seq num correct
                 expectedSeqNum += 1
                 data = UnpackageHeader(rcvpkt)
+                print(rcvpkt[0:5])
                 moreData, writeIndex = deliver_data(data, writeIndex)  # Write correct data to file
                 sndpkt = PackageHeader(ACK, expectedSeqNum)  # Package CORRECT ack
 
                 udt_send(sndpkt, serverSocket, ClientPort)
                 #onceThrough = True
             else:
-                print("Wrong!", rcvpkt[2], "Sent", sndpkt[2])
+                print("Wrong!", rcvpkt[IndexSeqNum], "Sent", sndpkt[IndexSeqNum])
                 udt_send(sndpkt, serverSocket, ClientPort)
 
 

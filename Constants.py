@@ -10,6 +10,11 @@ ServerName = 'localhost'
 ServerPort = 12000
 ClientPort = 12001
 
+IndexSeqNum = 2
+IndexSyn    = 3
+IndexFin    = 4
+
+IndexData   = 5
 
 #create destination file
 dstFile = 'dstPic.bmp'
@@ -28,7 +33,7 @@ SendFSM3 = "SendFSMwa1.gif"
 RecvFSM0 = "RecvFSM0.gif"
 RecvFSM1 = "RecvFSM1.gif"
 
-dataCorChance   = 20
-dataLossChance  = 20
-ackCorChance    = 20
-ackLossChance   = 20
+dataCorChance   = 0
+dataLossChance  = 0
+ackCorChance    = 0
+ackLossChance   = 0
