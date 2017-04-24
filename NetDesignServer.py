@@ -95,6 +95,8 @@ def ServerMain():
 
             if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, expectedSeqNum):  # If Checksum & seq num correct
                 expectedSeqNum += 1
+                if expectedSeqNum > MaxSequenceNum:
+                    expectedSeqNum = 1  # loop after 255, only one byte for seqNum
                 data = UnpackageHeader(rcvpkt)
                 print(rcvpkt[0:5])
                 deliver_data(data)  # Write correct data to file

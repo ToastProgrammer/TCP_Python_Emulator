@@ -17,13 +17,17 @@ IndexFin    = 4
 IndexData   = 5
 
 #create destination file
-dstFile = 'dstPic.bmp'
+dstFile             = 'dstPic.bmp'
 
-Alpha = 0.125
-Beta = 0.25
-DefaultRTT = 0.2
-DefaultDev = 0.01
-WindowSize = 8;
+Alpha               = 0.125
+Beta                = 0.25
+DefaultRTT          = 0.2
+DefaultDev          = 0.01
+WindowSize          = 8;
+
+MaxSequenceNum      = 255
+
+TearDownWait        = 30.0
 
 SendFSM0 = "SendFSM0a.gif"
 SendFSM1 = "SendFSMwa0.gif"
@@ -33,7 +37,7 @@ SendFSM3 = "SendFSMwa1.gif"
 RecvFSM0 = "RecvFSM0.gif"
 RecvFSM1 = "RecvFSM1.gif"
 
-blowShitUp = False
+blowShitUp = True
 
 if(blowShitUp):
     dataCorChance   = 20

@@ -27,6 +27,7 @@ finalPacket         = None
 
 synRecieved         = False
 transDone           = False
+looped              = False
 
 connBreakThread     = None
 timer               = []
@@ -41,7 +42,9 @@ threadMutex         = RLock()  # mutex for pkt dict control
 baseMutex           = RLock()
 pktMutex            = RLock()
 
-pktsReadySemaphore  = Semaphore(0)
+pktsReadySemaphore  = Semaphore(0)  # Number of packets packed to be sent
+loopOKedSemaphore   = Semaphore(1)  # Ensure two or more seqNum loops arent done
+writePcktSemaphore  = Semaphore(MaxSequenceNum) # Ensure unacked packets arent rewritten
 
 
 
@@ -233,6 +236,7 @@ def send_file():
         global connBreakThread
 
         global transDone
+        global looped
 
         global base
         global nextSeqNum
@@ -268,6 +272,7 @@ def send_file():
     StartConnTeardown()
 
     # Reset some values to default
+    looped = False
     finalPacket = None
     base = 0
     nextSeqNum = 0
@@ -307,6 +312,8 @@ def SendThread():
             if (base == nextSeqNum):
                 StartTimeout(wasAcked=False)
             nextSeqNum += 1
+            if nextSeqNum > MaxSequenceNum:
+                nextSeqNum = 1
             print("Senders nextSequNum", nextSeqNum)
         baseMutex.release()
 
@@ -330,6 +337,8 @@ def RecieveThread():
 
         global pktMutex
         global threadMutex
+        global loopOKedSemaphore
+        global writePcktSemaphore
 
         global connBreakThread
 
@@ -340,18 +349,43 @@ def RecieveThread():
         global sndpkt  # Dictionary of ready packets
 
         global transDone    # Global bool to communicate status of transmission between threads
+        global looped
+
+        global loopOKedSemaphore
 
 
     while(transDone == False):
+
+        update = False  # Update base this iteration or not
+
         rcvpkt = rdt_rcv(clientSocket)
         rcvpkt = CorruptCheck(rcvpkt, ackCorChance)
         ackLoss = LossCheck(ackLossChance)  # Check to see if ack was "lost"
         print("Reciever got", rcvpkt[IndexSeqNum])
-        if (ackLoss == False and CheckChecksum(rcvpkt) == True and CheckHigherSeq(rcvpkt,base) and CheckSyn(rcvpkt) == False):
+        if (ackLoss == False and CheckChecksum(rcvpkt) == True and CheckSyn(rcvpkt) == False):
+            if CheckHigherSeq(rcvpkt,base):
+                print("Updating Higher")
+                update = True
+            elif(looped and CheckWithinLoop(WindowSize, base, GetSequenceNum(rcvpkt))):
+                print("Updating Lower")
+                update = True
+                looped = False # tell the packer its okay to loop again
+                loopOKedSemaphore.release()     # Allow packing thread to loop again
+        if update:
+            print("reciever is grabbing baseMutex")
             baseMutex.acquire()
+            print("reciever grabbed baseMutex")
+            oldBase = base
             base = GetSequenceNum(rcvpkt)
             print("New Base =", base, "Next Seq =", nextSeqNum)
+            numPacketsAcked = GetNumPacketsBetween(oldBase, base, MaxSequenceNum)
+            i = 0
+            print("NUMBER PACKETS ACKED", numPacketsAcked)
+            while(i < numPacketsAcked):
+                writePcktSemaphore.release()
+                i += 1
             baseMutex.release()
+            print("reciever is releasing baseMutex")
             if base == nextSeqNum:
                 EndTimeout(wasAcked=True)
                 print("Do I ever get here?")
@@ -370,6 +404,7 @@ def PackingThread():
         global pktMutex
         global threadMutex
         global pktsReadySemaphore
+        global loopOKedSemaphore
 
         global finalPacket
         global base
@@ -378,11 +413,12 @@ def PackingThread():
         global sndpkt  # Dictionary of ready packets
 
         global transDone
+        global looped
 
         global delayValue
 
     i = 1
-    looped = False
+    localLooped = False
 
     # Procedure to automatically close window if invalid file is given
     try:
@@ -396,24 +432,31 @@ def PackingThread():
         raise
 
     #maxBytes = fileRead.seek(0, FILE_ENDG)  # Get total # of bytes in file and set as roof for progress bar
-    fileRead.seek(0, FILE_STRT)  # Reset file position
+    #fileRead.seek(0, FILE_STRT)  # Reset file position
 
     packdat = fileRead.read(PacketSize)  # packet creation
 
     pktMutex.acquire()
     while ((packdat != b'')):
-        if looped == False:
+        if localLooped == False:
             sndpkt.append(PackageHeader(packdat, i))
         else:
+            print("Before writePckt")
+            writePcktSemaphore.acquire()    # ensure unacked packets not rewritten
+            print("After writePckt")
             sndpkt[i] = PackageHeader(packdat, i)
         pktsReadySemaphore.release()    # signal sending thread that it can proceed
         packdat = fileRead.read(PacketSize)  # packet creation
         i += 1
-        if i > 255:
+        if i > MaxSequenceNum:
             i = 1
+            print("Before loopOK")
+            loopOKedSemaphore.acquire()  # cant loop more than one time ahead of reciever
+            print("After loopOK")
+            localLooped = True
             looped = True
 
-    if looped == False:
+    if localLooped == False:
         sndpkt.append(PackageHeader(b'', i, fin=True))    # final packet
     else:
         sndpkt[i] = PackageHeader(b'', i, fin=True)
@@ -472,23 +515,28 @@ def Timeout():
     global clientSocket
 
     print("Started timer")
-    i = base
+    index = base
+    i = 0
     if aquired:
         baseMutex.release()
-    while i < nextSeqNum+1:
+    j = GetNumPacketsBetween(base, nextSeqNum, MaxSequenceNum)
+    while i < j+1:
         #print("Timeout Packet sent:", i)
         try:
-            tempsend = sndpkt[i]
-            print(i, tempsend[IndexSeqNum])
+            tempsend = sndpkt[index]
             udt_send(tempsend, clientSocket, ServerPort,
                  dataCorChance,
                  dataLossChance
                  )
-            if i == finalPacket:
+            if index == finalPacket:
                 print("SENDING FINAL PACKET")
         except:
             pass
-        i+=1
+        i += 1
+        index += 1
+        if index > MaxSequenceNum:
+            index = 1
+
     print("Sent from", base, nextSeqNum)
     threadMutex.release()
     StartTimeout(wasAcked = False)
@@ -575,7 +623,7 @@ def ConnectionBreakdown(connBreakPkt):
 
     global clientSocket
 
-    clientSocket.settimeout(30.0)
+    clientSocket.settimeout(TearDownWait)
     startT = clock()
     while(True):
         try:
@@ -587,7 +635,7 @@ def ConnectionBreakdown(connBreakPkt):
 
                 udt_send(connBreakPkt, clientSocket, ServerPort, corChance=dataCorChance, lossChance=dataLossChance)
 
-            newTimeout = 30.0 - (clock() - startT)  # Get amount of time since "30 seconds" started
+            newTimeout = TearDownWait - (clock() - startT)  # Get amount of time since "30 seconds" started
             if(newTimeout < 0): # If time went over while responding
                 break
             clientSocket.settimeout(newTimeout) # Total timeout must be around  accumulative 30 seconds
