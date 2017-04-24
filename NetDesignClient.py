@@ -26,6 +26,7 @@ finalPacket         = None
 synRecieved         = False
 transDone           = False
 looped              = False
+senderLooped        = False
 
 connBreakThread     = None
 timer               = []
@@ -294,18 +295,29 @@ def SendThread():
         global sndpkt   # Dictionary of ready packets
 
         global transDone
+        global senderLooped
 
         global delayValue
 
     delayValue = clock()
 
+    tally = 0
+
     while((finalPacket == None) or (finalPacket != nextSeqNum-1)):
         baseMutex.acquire()
-        if (nextSeqNum < base+WindowSize and len(sndpkt) > nextSeqNum - 1): #If next sequence number in window
+        if ((nextSeqNum < base+WindowSize and len(sndpkt) > nextSeqNum - 1) or (senderLooped and CheckWithinLoop(WindowSize, base, nextSeqNum))): #If next sequence number in window
+            baseMutex.release()
+            if(senderLooped):
+                senderLooped = False
+            tally += 1
+            print("Sender tally", tally)
             print("Sender Grabbing pktsRdy")
             pktsReadySemaphore.acquire()
             print("Sender Grabbed pktsRdy")
+
+            baseMutex.acquire()
             udt_send(sndpkt[nextSeqNum], clientSocket, ServerPort, dataCorChance, dataLossChance)
+            baseMutex.release()
 
             if (base == nextSeqNum):
                 StartTimeout(wasAcked=False)
@@ -313,7 +325,8 @@ def SendThread():
             if nextSeqNum > MaxSequenceNum:
                 nextSeqNum = 1
             print("Senders nextSequNum", nextSeqNum)
-        baseMutex.release()
+        else:
+            baseMutex.release()
     print("Escaped")
     while(base != finalPacket+1):
         pass
@@ -364,7 +377,8 @@ def RecieveThread():
             if CheckHigherSeq(rcvpkt,base):
                 print("Updating Higher")
                 update = True
-            elif(looped and CheckWithinLoop(WindowSize, base, GetSequenceNum(rcvpkt))):
+            #elif(looped and CheckWithinLoop(WindowSize, base, GetSequenceNum(rcvpkt) - 1)):
+            elif (looped):
                 print("Updating Lower")
                 update = True
                 looped = False # tell the packer its okay to loop again
@@ -402,6 +416,7 @@ def PackingThread():
         global pktMutex
         global threadMutex
         global pktsReadySemaphore
+        global writePcktSemaphore
         global loopOKedSemaphore
 
         global finalPacket
@@ -412,6 +427,7 @@ def PackingThread():
 
         global transDone
         global looped
+        global senderLooped
 
         global delayValue
 
@@ -433,26 +449,32 @@ def PackingThread():
     #fileRead.seek(0, FILE_STRT)  # Reset file position
 
     packdat = fileRead.read(PacketSize)  # packet creation
-
-    pktMutex.acquire()
+    tally = 0
     while ((packdat != b'')):
         if localLooped == False:
             sndpkt.append(PackageHeader(packdat, i))
+            pktsReadySemaphore.release()
         else:
-            print("Before writePckt")
-            writePcktSemaphore.acquire()    # ensure unacked packets not rewritten
-            print("After writePckt")
             sndpkt[i] = PackageHeader(packdat, i)
+
+        print("Before writePckt")
+        writePcktSemaphore.acquire()  # ensure unacked packets not rewritten
+        print("After writePckt")
+
+        tally += 1
+        print("Packer tally", tally)
         pktsReadySemaphore.release()    # signal sending thread that it can proceed
         packdat = fileRead.read(PacketSize)  # packet creation
         i += 1
         if i > MaxSequenceNum:
+            print(i, ">", MaxSequenceNum)
             i = 1
             print("Before loopOK")
             loopOKedSemaphore.acquire()  # cant loop more than one time ahead of reciever
             print("After loopOK")
             localLooped = True
             looped = True
+            senderLooped = True
 
     if localLooped == False:
         sndpkt.append(PackageHeader(b'', i, fin=True))    # final packet
@@ -463,7 +485,6 @@ def PackingThread():
 
     finalPacket = i     # Set the global final packet so that other threads can see
     print("FINAL PACKET IS ", i)
-    pktMutex.release()
     fileRead.close()
 
 #====================== T i m e o u t   F u n c t i o n s ======================
@@ -484,7 +505,7 @@ def StartTimeout(wasAcked):
     global devRTT
 
     localTimer = Timer( estimatedRTT + (4) * (devRTT), Timeout)
-    print("Timer val = ", estimatedRTT + 4*devRTT)
+    #print("Timer val = ", estimatedRTT + 4*devRTT)
 
     if len(timer) == SizeTimerStruct:
         timer[IndexStartT] = clock()

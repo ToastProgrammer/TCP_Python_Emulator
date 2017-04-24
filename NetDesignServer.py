@@ -98,7 +98,7 @@ def ServerMain():
                 if expectedSeqNum > MaxSequenceNum:
                     expectedSeqNum = 1  # loop after 255, only one byte for seqNum
                 data = UnpackageHeader(rcvpkt)
-                print(rcvpkt[0:5])
+                print(rcvpkt[IndexSeqNum])
                 deliver_data(data)  # Write correct data to file
                 if (CheckFin(rcvpkt)):  # If FIN flag is set, begin connection teardown
                     connectionBreakdown = True

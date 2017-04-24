@@ -16,7 +16,7 @@ IndexFin    = 4
 
 IndexData   = 5
 
-srcFile = 's.bmp'
+srcFile = 'd.bmp'
 #create destination file
 dstFile             = 'dstPic.bmp'
 
@@ -38,7 +38,7 @@ SendFSM3 = "SendFSMwa1.gif"
 RecvFSM0 = "RecvFSM0.gif"
 RecvFSM1 = "RecvFSM1.gif"
 
-blowShitUp = True
+blowShitUp = False
 
 if(blowShitUp):
     dataCorChance   = 20
