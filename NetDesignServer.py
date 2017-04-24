@@ -79,11 +79,9 @@ def ServerMain():
 
         synPkt = PackageHeader(ACK, 0, syn=True)
         sndpkt = PackageHeader(ACK,expectedSeqNum)  # Pack first ACK
-        print(synPkt[0:5])
         while(moreData):
             rcvpkt = rdt_rcv(serverSocket)
-            #print("Test", test)
-            #print(CheckChecksum(rcvpkt), CheckSequenceNum(rcvpkt, expectedSeqNum))
+
 
             # CONNECTION SETUP **************************************
             while(connectionSetup):
@@ -98,17 +96,14 @@ def ServerMain():
                 if expectedSeqNum > MaxSequenceNum:
                     expectedSeqNum = 1  # loop after 255, only one byte for seqNum
                 data = UnpackageHeader(rcvpkt)
-                print(rcvpkt[IndexSeqNum])
                 deliver_data(data)  # Write correct data to file
                 if (CheckFin(rcvpkt)):  # If FIN flag is set, begin connection teardown
                     connectionBreakdown = True
                     moreData = False
-                    print("Should exit here")
                 sndpkt = PackageHeader(ACK, expectedSeqNum, fin=connectionBreakdown)  # Package ack, seq (and fin?)
                 udt_send(sndpkt, serverSocket, ClientPort)
                 #onceThrough = True
             else:
-                print("Wrong!", rcvpkt[IndexSeqNum], "Sent", sndpkt[IndexSeqNum])
                 udt_send(sndpkt, serverSocket, ClientPort)
 
         # ENTERING CONNECTION BREAKDOWN
@@ -117,7 +112,6 @@ def ServerMain():
 
         checkThread = Thread(None, checkTeardownAck, "Check for C Fin ACK", args=[expectedSeqNum])
         checkThread.start()
-        print("CHECKIN DIS SHIT", sndpkt)
         while (waitForAck):
             udt_send(sndpkt, serverSocket, ClientPort)
             sleep(.1)

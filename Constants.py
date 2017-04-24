@@ -16,7 +16,7 @@ IndexFin    = 4
 
 IndexData   = 5
 
-srcFile = 'd.bmp'
+srcFile = 's.bmp'
 #create destination file
 dstFile             = 'dstPic.bmp'
 
