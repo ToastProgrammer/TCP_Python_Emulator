@@ -86,11 +86,18 @@ def SetSynFin(data, syn, fin):
         data = bytes([0]) + data
     return data
 
+def CheckSyn(data):
+    if (data[IndexSyn] == 1):
+        return True
+    else:
+        return False
+
 def CheckFin(data):
     if (data[IndexFin] == 1):
         return True
     else:
         return False
+
 
 ##---------------Packet Functions-----------------##
 # Add checksum, seq#, and possible corruption

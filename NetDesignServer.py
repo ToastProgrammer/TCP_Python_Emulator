@@ -67,17 +67,32 @@ def ServerMain():
 
     while 1:
 
-        moreData = True
+        moreData            = True
+        newFile             = True
 
-        expectedSeqNum = 1
-        newFile = True
+        connectionSetup     = True
         connectionBreakdown = False
 
-        sndpkt = PackageHeader(ACK,expectedSeqNum)
+        expectedSeqNum = 1
+
+
+
+        synPkt = PackageHeader(ACK, 0, syn=True)
+        sndpkt = PackageHeader(ACK,expectedSeqNum)  # Pack first ACK
+        print(synPkt[0:5])
         while(moreData):
             rcvpkt = rdt_rcv(serverSocket)
             #print("Test", test)
             #print(CheckChecksum(rcvpkt), CheckSequenceNum(rcvpkt, expectedSeqNum))
+
+            # CONNECTION SETUP **************************************
+            while(connectionSetup):
+                if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, 0) and CheckSyn(rcvpkt):
+                    udt_send(synPkt, serverSocket, ClientPort)
+                rcvpkt = rdt_rcv(serverSocket)
+                if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, expectedSeqNum) and CheckSyn(rcvpkt) == False:
+                    connectionSetup = False
+
             if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, expectedSeqNum):  # If Checksum & seq num correct
                 expectedSeqNum += 1
                 data = UnpackageHeader(rcvpkt)

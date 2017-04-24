@@ -18,7 +18,6 @@ from threading import *
 
 global root
 global fileRead
-transDone = False
 
 srcFile = 's.bmp'
 
@@ -26,10 +25,14 @@ nextSeqNum          = 1             # Initial Sequence number
 base                = 1
 finalPacket         = None
 
+synRecieved         = False
+transDone           = False
+
 connBreakThread     = None
 timer               = []
 devRTT              = DefaultDev    # Initial EstimatedRTTDeviation
 estimatedRTT        = DefaultRTT    # Initial EstimatedRTT
+delayValue          = 0
 
 currentPackets      = {}
 sndpkt              = [0]
@@ -224,15 +227,16 @@ class App(Frame):
 
 def send_file():
 
-    global clientSocket
+    if True:
+        global clientSocket
 
-    global connBreakThread
+        global connBreakThread
 
-    global transDone
+        global transDone
 
-    global base
-    global nextSeqNum
-    global finalPacket
+        global base
+        global nextSeqNum
+        global finalPacket
 
     transDone = False  # variable to notify
 
@@ -243,15 +247,11 @@ def send_file():
     clientSocket = socket(AF_INET, SOCK_DGRAM)
     clientSocket.bind(('', ClientPort))
 
+    ConnectionSetup()
+
     sendingThread   = Thread(None, SendThread, "Sending Thread")
-
     recieveThread   = Thread(None, RecieveThread, "Recieving Thread")  # Initialize Recieve Thread
-
     packingThread   = Thread(None, PackingThread, "Packet-Making Thread")
-
-    delayValue = clock() #start timer for overall transaction
-
-    started = False
 
     # Initialize sending, recieving, and packing threads
     sendingThread.start()
@@ -347,7 +347,7 @@ def RecieveThread():
         rcvpkt = CorruptCheck(rcvpkt, ackCorChance)
         ackLoss = LossCheck(ackLossChance)  # Check to see if ack was "lost"
         print("Reciever got", rcvpkt[IndexSeqNum])
-        if (ackLoss == False and CheckChecksum(rcvpkt) == True and CheckHigherSeq(rcvpkt,base)):
+        if (ackLoss == False and CheckChecksum(rcvpkt) == True and CheckHigherSeq(rcvpkt,base) and CheckSyn(rcvpkt) == False):
             baseMutex.acquire()
             base = GetSequenceNum(rcvpkt)
             print("New Base =", base, "Next Seq =", nextSeqNum)
@@ -515,6 +515,40 @@ def EndTimeout(wasAcked):
 
     threadMutex.release()  # Release to allow other threads to modify
 
+#============== C o n n e c t i o n   S e t u p   F u n c t i o n s ============
+
+def ConnectionSetup():
+
+    global clientSocket
+    global synRecieved
+
+    print("Starting Setup")
+    connSetupPacket = PackageHeader(ACK, 0, syn = True)
+    connSetRecThread = Thread(None, SetupSend, "Setup ACK reciever", args=[connSetupPacket])
+    connSetRecThread.start()
+    print("Starting Setup loops")
+    while(synRecieved == False):
+        rcvpkt = rdt_rcv(clientSocket)
+        rcvpkt = CorruptCheck(rcvpkt, ackCorChance)
+        ackLoss = LossCheck(ackLossChance)  # Check to see if ack was "lost"
+        if (ackLoss == False and CheckChecksum(rcvpkt) == True and CheckSyn(rcvpkt) and CheckSequenceNum(rcvpkt, 0)):
+            synRecieved = True
+
+    connSetRecThread.join() # Wait for child thread to finish
+    synRecieved = False     # Reset for next file sent
+
+def SetupSend(setupPacket):
+    global clientSocket
+    global synRecieved
+
+    while(synRecieved == False):
+        udt_send(setupPacket, clientSocket, ServerPort, corChance=dataCorChance, lossChance=dataLossChance)
+        sleep(0.1)
+
+
+#========== C o n n e c t i o n   T e a r d o w n   F u n c t i o n s ==========
+
+#-------------------- S t a r t   C o n n   T e a r d o w n --------------------
 def StartConnTeardown():
 
     global base
@@ -528,8 +562,6 @@ def StartConnTeardown():
     while (finRecieved == False):
 
         rcvpkt = rdt_rcv(clientSocket)
-        print("Waited")
-        print(rcvpkt[0:6])
         rcvpkt = CorruptCheck(rcvpkt, ackCorChance)
         ackLoss = LossCheck(ackLossChance)
 
@@ -543,7 +575,7 @@ def ConnectionBreakdown(connBreakPkt):
 
     global clientSocket
 
-    clientSocket.settimeout(1.0)
+    clientSocket.settimeout(30.0)
     startT = clock()
     while(True):
         try:

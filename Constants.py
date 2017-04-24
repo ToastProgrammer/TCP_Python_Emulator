@@ -33,7 +33,15 @@ SendFSM3 = "SendFSMwa1.gif"
 RecvFSM0 = "RecvFSM0.gif"
 RecvFSM1 = "RecvFSM1.gif"
 
-dataCorChance   = 0
-dataLossChance  = 0
-ackCorChance    = 0
-ackLossChance   = 0
+blowShitUp = False
+
+if(blowShitUp):
+    dataCorChance   = 20
+    dataLossChance  = 20
+    ackCorChance    = 20
+    ackLossChance   = 20
+else:
+    dataCorChance   = 0
+    dataLossChance  = 0
+    ackCorChance    = 0
+    ackLossChance   = 0
