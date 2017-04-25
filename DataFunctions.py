@@ -112,10 +112,17 @@ def CheckFin(data):
     else:
         return False
 
+##-------------------Rwnd  Set--------------------##
+def PackRwnd(data, rwnd):
+    return bytes([rwnd]) + data
+
+def UnpackRwnd(data):
+    return data[IndexRwnd]
 
 ##---------------Packet Functions-----------------##
 # Add checksum, seq#, and possible corruption
-def PackageHeader(data, seq, syn = False, fin = False):
+def PackageHeader(data, seq, rwnd = 0, syn = False, fin = False):
+    data = PackRwnd(data, rwnd)
     data = SetSynFin(data, syn, fin)
     Segment = AddSequenceNum(data, seq)
     packet = InsertChecksum(Segment, MakeChecksum(Segment))

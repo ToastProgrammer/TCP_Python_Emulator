@@ -12,12 +12,61 @@ from Constants import *
 from time import clock, sleep
 from os import remove
 
-writeIndex = 0
-moreData = True
-fileWrite = None
-newFile = True
+writeIndex  = 0
+moreData    = True
+fileWrite   = None
+newFile     = True
 serverSocket = None
-waitForAck = True
+waitForAck  = True
+rcvBfr      = [0]*RcvBufferSize
+rcvBfrPkts  = [0]*RcvBufferSize
+rwnd        =   RcvBufferSize
+
+def GetRwndSize(lastByteRead):
+    global rcvBfr
+    global rwnd
+    lastByteRcvd = max(rcvBfr)
+    if lastByteRcvd == 0:
+        rwnd = RcvBufferSize
+    else:
+        rwnd = max(1, min(lastByteRcvd - lastByteRead, RcvBufferSize))
+
+def AddToRcvBfr(seqNum, expectedSeqNum, pkt):
+    global rcvBfr
+    global rcvBfrPkts
+
+    rcvBfr[seqNum - expectedSeqNum] = seqNum
+    rcvBfrPkts[seqNum - expectedSeqNum] = pkt
+
+def UpdateSeqNum(recSeq, recPkt):
+    global rcvBfr
+    global rcvBfrPkts
+
+    newSeqNum = recSeq + 1
+    deliver_data(recPkt)
+
+    i = 1
+    j = 1
+    print("1", newSeqNum)
+    for x in rcvBfr[1:]:
+        if x == 0:
+            break
+        else:
+            deliver_data(rcvBfrPkts[i])
+            i += 1
+            newSeqNum +=1
+    print("new seq num", newSeqNum)
+    while j < i - 1:
+        print("j", j)
+        rcvBfr[j]       = 0
+        rcvBfrPkts[j]   = 0
+        j += 1
+    print("2", newSeqNum)
+    return newSeqNum
+
+
+
+
 
 
 def checkTeardownAck(expectedSeqNum):
@@ -58,10 +107,11 @@ def ServerMain():
     global waitForAck
     global serverSocket
 
+    global rcvBfr
+    global rwnd
+
     serverSocket = socket(AF_INET, SOCK_DGRAM)
     serverSocket.bind(('',ServerPort))
-
-    connectionBreakdown = False
 
     print ('The server is ready to receive')
 
@@ -90,22 +140,30 @@ def ServerMain():
                 rcvpkt = rdt_rcv(serverSocket)
                 if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, expectedSeqNum) and CheckSyn(rcvpkt) == False:
                     connectionSetup = False
-
+            print("Out of Setup")
             if CheckChecksum(rcvpkt) and CheckSequenceNum(rcvpkt, expectedSeqNum):  # If Checksum & seq num correct
-                expectedSeqNum += 1
+                print("Expected Seq", expectedSeqNum)
+                data = UnpackageHeader(rcvpkt)
+                expectedSeqNum = UpdateSeqNum(expectedSeqNum, data)
+                print("New Seq", expectedSeqNum)
                 if expectedSeqNum > MaxSequenceNum:
                     expectedSeqNum = 1  # loop after 255, only one byte for seqNum
-                data = UnpackageHeader(rcvpkt)
-                deliver_data(data)  # Write correct data to file
                 if (CheckFin(rcvpkt)):  # If FIN flag is set, begin connection teardown
                     connectionBreakdown = True
                     moreData = False
-                sndpkt = PackageHeader(ACK, expectedSeqNum, fin=connectionBreakdown)  # Package ack, seq (and fin?)
-                udt_send(sndpkt, serverSocket, ClientPort)
-                #onceThrough = True
-            else:
-                udt_send(sndpkt, serverSocket, ClientPort)
 
+                GetRwndSize(GetSequenceNum(rcvpkt))
+
+                sndpkt = PackageHeader(ACK, expectedSeqNum, fin=connectionBreakdown, rwnd=rwnd)  # Package ack, seq (and fin?)
+                udt_send(sndpkt, serverSocket, ClientPort)
+            elif CheckChecksum(rcvpkt) and CheckWithinLoop(rwnd, expectedSeqNum, GetSequenceNum(rcvpkt)):
+                print("Out of seq")
+                GetRwndSize(GetSequenceNum(rcvpkt))
+                AddToRcvBfr(GetSequenceNum(rcvpkt), expectedSeqNum, UnpackageHeader(rcvpkt))
+                udt_send(sndpkt, serverSocket, ClientPort)
+            else:
+                print("Invalid")
+                udt_send(sndpkt, serverSocket, ClientPort)
         # ENTERING CONNECTION BREAKDOWN
         waitForAck = True
         sndpkt = PackageHeader(ACK, expectedSeqNum, fin=True)

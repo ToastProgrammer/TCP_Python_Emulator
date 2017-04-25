@@ -13,8 +13,11 @@ ClientPort = 12001
 IndexSeqNum = 2
 IndexSyn    = 3
 IndexFin    = 4
+IndexRwnd   = 5
 
-IndexData   = 5
+IndexData   = 6
+
+RcvBufferSize   = 6
 
 srcFile = 's.bmp'
 #create destination file
@@ -24,7 +27,7 @@ Alpha               = 0.125
 Beta                = 0.25
 DefaultRTT          = 0.2
 DefaultDev          = 0.01
-WindowSize          = 8;
+WindowSize          = 6
 
 MaxSequenceNum      = 255
 
@@ -38,9 +41,9 @@ SendFSM3 = "SendFSMwa1.gif"
 RecvFSM0 = "RecvFSM0.gif"
 RecvFSM1 = "RecvFSM1.gif"
 
-blowShitUp = True
+errorLoss = True
 
-if(blowShitUp):
+if(errorLoss):
     dataCorChance   = 20
     dataLossChance  = 20
     ackCorChance    = 20

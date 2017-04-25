@@ -19,6 +19,8 @@ from threading import *
 global root
 global fileRead
 
+rwnd                = WindowSize
+
 nextSeqNum          = 1             # Initial Sequence number
 base                = 1
 finalPacket         = None
@@ -81,21 +83,6 @@ class App(Frame):
         self.grid_columnconfigure(0, weight = 1)
         self.grid_columnconfigure(1, weight = 1)
         self.grid_columnconfigure(2, weight = 1)
-
-        # ----------- F S M   D i s p l a y s -----------
-        self.sendFSMLabel = Label(root, text='Sender FSM')
-        self.sendFSMLabel.grid(row=5, column=0, padx=40, pady=1, sticky=W + S)
-
-        self.sendFSM = Label()
-        self.sendFSM.grid(row=6, column=0, pady=1, sticky=E + S)
-        self.UpdateFSM(0, True)  # Update the image of the Sender FSM
-
-        self.recvFSMLabel = Label(root, text='Reciever FSM')
-        self.recvFSMLabel.grid(row=5, column=1, padx=40, pady=1, sticky=E + S, columnspan=2)
-
-        self.recvFSM = Label()
-        self.recvFSM.grid(row=6, column=1, padx=3, pady=1, sticky=E + S, columnspan=2)
-        self.UpdateFSM(0, False)  # Update the image of the Reciever FSM
 
         # ----------- T i m e   D i s p l a y -----------
 
@@ -288,6 +275,8 @@ def SendThread():
         global threadMutex
         global pktsReadySemaphore
 
+        global rwnd
+
         global finalPacket
         global base
         global nextSeqNum
@@ -303,7 +292,7 @@ def SendThread():
 
     while((finalPacket == None) or (finalPacket != nextSeqNum-1)):
         baseMutex.acquire()
-        if ((nextSeqNum < base+WindowSize and len(sndpkt) > nextSeqNum - 1) or (senderLooped and CheckWithinLoop(WindowSize, base, nextSeqNum))): #If next sequence number in window
+        if ((nextSeqNum < base+rwnd and len(sndpkt) > nextSeqNum - 1) or (senderLooped and CheckWithinLoop(rwnd, base, nextSeqNum))): #If next sequence number in window
             baseMutex.release()
             if(senderLooped):
                 senderLooped = False
@@ -351,6 +340,8 @@ def RecieveThread():
         global base
         global nextSeqNum
 
+        global rwnd
+
         global sndpkt  # Dictionary of ready packets
 
         global transDone    # Global bool to communicate status of transmission between threads
@@ -367,9 +358,12 @@ def RecieveThread():
         rcvpkt = CorruptCheck(rcvpkt, ackCorChance)
         ackLoss = LossCheck(ackLossChance)  # Check to see if ack was "lost"
         if (ackLoss == False and CheckChecksum(rcvpkt) == True and CheckSyn(rcvpkt) == False):
+            recRwnd = UnpackRwnd(rcvpkt)
+            if(recRwnd > 0):
+                rwnd = recRwnd
             if CheckHigherSeq(rcvpkt,base):
                 update = True
-            elif(looped and CheckWithinLoop(WindowSize, base, GetSequenceNum(rcvpkt) - 1)):
+            elif(looped and CheckWithinLoop(rwnd, base, GetSequenceNum(rcvpkt) - 1)):
             #elif (looped):
                 update = True
                 looped = False # tell the packer its okay to loop again
@@ -384,6 +378,7 @@ def RecieveThread():
                 writePcktSemaphore.release()
                 i += 1
             baseMutex.release()
+            print("Old base =", oldBase, "New BAse =", base)
             if base == nextSeqNum:
                 EndTimeout(wasAcked=True)
             else:
